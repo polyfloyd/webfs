@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <title>{{ .title }}</title>
+
+  <script>
+    window.URLROOT = '{{ .urlroot }}';
+  </script>
+
+  {{ range .assets.css }}
+    <link rel="stylesheet" href="{{ . }}" />
+  {{ end }}
+  {{ range .assets.js }}
+    <script src="{{ . }}"></script>
+  {{ end }}
+
+  {{ if .piwik }}
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="{{ .piwikRoot }}";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', {{ .piwikSiteID }}]);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript><img src="{{ .piwikRoot }}piwik.php?idsite={{ .piwikSiteID }}" style="border:0;" alt="" /></noscript>
+  {{ end }}
+
+</head>
+<body>
+  <div class="container-fluid">
+
+    <div class="fs-header">
+      <div class="fs-path-bar">
+        <template id="fs-path-bar-segment-tmpl">
+          <a class="fs-path-segment" href="{{ .urlroot }}/{{ .fs.Name }}/{% .path %}">{% .name %}</a>
+        </template>
+      </div>
+    </div>
+
+    <div class="fs-file-list container-fluid">
+      <template id="fs-file-tmpl">
+        <div class="fs-file">
+          <div class="{% .type %}" {% if .thumb %}style="background-image:url('{{ .urlroot }}/fs/{{ .fs.Name }}/thumb{% .path %}')" title="{% .name %}">
+          <a class="fs-file-title" href="{{ .urlroot }}/fs/{{ .fs.Name }}/view{% .path %}">{% .name %}</a>
+        </div>
+      </template>
+    </div>
+
+    <div class="fs-footer text-center">
+      <small>
+        &copy; <a target="_blank" href="https://twitter.com/polyfloyd">PolyFloyd</a> {{ .time.Year }}
+      </small>
+      <br />
+      <small>Version: {{ .version }}</small>
+    </div>
+
+  </div>
+  <script>
+    initApp({
+      files: {{ .files }},
+      path: '{{ .path }}',
+    });
+  </script>
+</body>
+</html>

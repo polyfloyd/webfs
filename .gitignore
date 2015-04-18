@@ -2,3 +2,10 @@
 *~
 *.swp
 *.swo
+/config.json
+/webfs
+/bower_components
+/src/assets-go
+/src/assets/BUILD
+/src/assets/VERSION
+/src/assets/public/00-dep
