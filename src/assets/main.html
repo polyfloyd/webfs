@@ -45,9 +45,13 @@
 
     <div class="fs-file-list container-fluid">
       <template id="fs-file-tmpl">
+        {{ `{{={| |}=}}` }}
         <div class="fs-file">
-          <div class="{% .type %}" {% if .thumb %}style="background-image:url('{{ .urlroot }}/fs/{{ .fs.Name }}/thumb{% .path %}')" title="{% .name %}">
-          <a class="fs-file-title" href="{{ .urlroot }}/fs/{{ .fs.Name }}/view{% .path %}">{% .name %}</a>
+          <div
+            class="fs-file-type-{| type |}"
+            title="{| name |}"
+            style="{|# hasThumb |}background-image:url('{{ .urlroot }}/fs/{{ .fs.Name }}/thumb{| path |}'){|/ hasThumb |}">
+          <a class="fs-file-title" href="{{ .urlroot }}/fs/{{ .fs.Name }}/view{| path |}">{| name |}</a>
         </div>
       </template>
     </div>

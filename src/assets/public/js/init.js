@@ -10,6 +10,8 @@ function initApp(options) {
   var fileList         = $('.fs-file-list');
   var fileListTemplate = $('#fs-file-tmpl').html();
 
+  Mustache.parse(fileListTemplate);
+
   fileList.append(options.files.map(function(file) {
     return (new FileView(file, fileListTemplate)).el;
   }));
