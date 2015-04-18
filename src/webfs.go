@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"mime"
 	"os"
 	"path"
@@ -13,7 +14,7 @@ type File struct {
 	path  string
 }
 
-func (this *File) Open() (*os.File, error) {
+func (this *File) Open() (io.ReadCloser, error) {
 	return os.Open(path.Join(this.fs.RealPath, this.path))
 }
 
