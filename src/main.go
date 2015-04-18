@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ func (h *AssetServeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 
 func main() {
 	log.Printf("Version: %v (%v)\n", VERSION, BUILD)
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	config := Config{}
 	if in, err := os.Open(CONFFILE); err != nil {
@@ -126,8 +128,7 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 	}
 
 	return func(w http.ResponseWriter, req *http.Request) {
-		p := path.Join("/", mux.Vars(req)["path"])
-
+		p    := path.Join("/", mux.Vars(req)["path"])
 		file := fs.Find(p)
 
 		if file == nil {
@@ -147,8 +148,10 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 			names := []map[string]interface{}{}
 			for name := range dir {
 				names = append(names, map[string]interface{}{
-					"name": name,
-					"path": path.Join(p, name),
+					"name":     name,
+					"path":     path.Join(p, name),
+					"type":     "generic", // TODO
+					"hasThumb": true,      // TODO
 				})
 			}
 
@@ -172,9 +175,30 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 	}
 }
 
-func htFsThumb(webfs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
+func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte("thumb"))
+		p    := path.Join("/", mux.Vars(req)["path"])
+		file := fs.Find(p)
+
+		if file == nil {
+			http.NotFound(w, req)
+			return
+		}
+
+		if fi, ok := file.(*File); ok {
+			if th := FindFileThumber(fi); th != nil {
+				if reader, err := fi.Open(); err != nil {
+					panic(err)
+				} else {
+					defer reader.Close()
+					if err := th.Thumb(reader, w, 140, 140); err != nil {
+						panic(err)
+					}
+				}
+			}
+		} else {
+			http.NotFound(w, req)
+		}
 	}
 }
 

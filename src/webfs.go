@@ -22,9 +22,6 @@ func (this *File) MimeType() string {
 	return mime.TypeByExtension(path.Ext(this.path))
 }
 
-func (this *File) getThumb() string {
-	return mime.TypeByExtension(path.Ext(this.path))
-}
 
 type Filesystem struct {
 	RealPath string
