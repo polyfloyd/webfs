@@ -20,7 +20,7 @@ func NewCache() *ThumbMemCache {
 	}
 }
 
-func (cache ThumbMemCache) Get(filepath string, w, h int) (io.ReadCloser, error) {
+func (cache *ThumbMemCache) Get(filepath string, w, h int) (io.ReadCloser, error) {
 	cache.lock.RLock()
 	thumb, ok := cache.store[cacheKey{
 		w:    w,
@@ -41,7 +41,7 @@ func (cache ThumbMemCache) Get(filepath string, w, h int) (io.ReadCloser, error)
 	}, nil
 }
 
-func (cache ThumbMemCache) Put(filepath string, w, h int) io.WriteCloser {
+func (cache *ThumbMemCache) Put(filepath string, w, h int) io.WriteCloser {
 	thumb := &cachedThumb{}
 	// Lock now so we don't cause any race conditions with Get(). The lock is
 	// released by the call to Close() of the returned writer.
@@ -61,7 +61,7 @@ func (cache ThumbMemCache) Put(filepath string, w, h int) io.WriteCloser {
 	}
 }
 
-func (cache ThumbMemCache) Destroy(filepath string, w, h int) error {
+func (cache *ThumbMemCache) Destroy(filepath string, w, h int) error {
 	cache.lock.Lock()
 	key := cacheKey{
 		w:    w,
