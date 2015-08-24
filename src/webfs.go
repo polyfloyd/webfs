@@ -9,9 +9,9 @@ import (
 )
 
 type File struct {
-	Info  os.FileInfo
+	Info os.FileInfo
 	fs   *Filesystem
-	path  string
+	path string
 }
 
 func (this *File) Open() (io.ReadCloser, error) {
@@ -21,7 +21,6 @@ func (this *File) Open() (io.ReadCloser, error) {
 func (this *File) MimeType() string {
 	return mime.TypeByExtension(path.Ext(this.path))
 }
-
 
 type Filesystem struct {
 	RealPath string
@@ -79,7 +78,7 @@ func (fs *Filesystem) Find(p string) interface{} {
 		p = s
 	}
 
-	if p == "/"{
+	if p == "/" {
 		return fs.Files
 	}
 

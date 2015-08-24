@@ -1,6 +1,7 @@
 package main
 
 import (
+	assets "./assets-go"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
@@ -15,7 +16,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	assets "./assets-go"
 )
 
 const (
@@ -32,7 +32,6 @@ var (
 	pageTemlates = map[string]*template.Template{}
 )
 
-
 type Config struct {
 	Address string `json:"address"`
 	URLRoot string `json:"urlroot"`
@@ -47,7 +46,6 @@ type Config struct {
 	} `json:"fs"`
 }
 
-
 type AssetServeHandler struct {
 	name string
 }
@@ -56,7 +54,6 @@ func (h *AssetServeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 	w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(h.name)))
 	io.Copy(w, bytes.NewReader(assets.MustAsset(h.name)))
 }
-
 
 func main() {
 	log.Printf("Version: %v (%v)\n", VERSION, BUILD)
@@ -87,9 +84,9 @@ func main() {
 		webfs := NewFilesystem(fsConf.Path, fsConf.Name)
 		filesystems[fsConf.Name] = webfs
 
-		r.Path("/fs/"+fsConf.Name+"/view/{path:.*}").HandlerFunc(htFsView(webfs, &config))
-		r.Path("/fs/"+fsConf.Name+"/thumb/{path:.*}").HandlerFunc(htFsThumb(webfs))
-		r.Path("/fs/"+fsConf.Name+"/get/{path:.*}").HandlerFunc(htFsGet(webfs))
+		r.Path("/fs/" + fsConf.Name + "/view/{path:.*}").HandlerFunc(htFsView(webfs, &config))
+		r.Path("/fs/" + fsConf.Name + "/thumb/{path:.*}").HandlerFunc(htFsThumb(webfs))
+		r.Path("/fs/" + fsConf.Name + "/get/{path:.*}").HandlerFunc(htFsGet(webfs))
 	}
 
 	log.Printf("Now accepting HTTP connections on %v", config.Address)
@@ -103,9 +100,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-
 func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *http.Request) {
-
 	static := map[string][]string{
 		"js":  []string{},
 		"css": []string{},
@@ -128,7 +123,7 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 	}
 
 	return func(w http.ResponseWriter, req *http.Request) {
-		p    := path.Join("/", mux.Vars(req)["path"])
+		p := path.Join("/", mux.Vars(req)["path"])
 		file := fs.Find(p)
 
 		if file == nil {
@@ -166,7 +161,7 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 				"piwik":       config.Piwik,
 				"piwikRoot":   config.PiwikRoot,
 				"piwikSiteID": config.PiwikSiteID,
-				
+
 				"fs":    fs,
 				"path":  p,
 				"files": names,
@@ -177,7 +172,7 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 
 func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		p    := path.Join("/", mux.Vars(req)["path"])
+		p := path.Join("/", mux.Vars(req)["path"])
 		file := fs.Find(p)
 
 		if file == nil {
@@ -208,7 +203,6 @@ func htFsGet(webfs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-
 func getPageTemplate(name string) *template.Template {
 	if BUILD == "debug" {
 		return template.Must(template.New(name).Parse(string(assets.MustAsset(name))))
@@ -221,7 +215,6 @@ func getPageTemplate(name string) *template.Template {
 		}
 	}
 }
-
 
 func htMainPage(config *Config, static map[string][]string) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {

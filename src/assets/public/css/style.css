@@ -1,29 +1,29 @@
 .fs-file {
-  width: 140px;
-  height: 140px;
-  position: relative;
+	width: 140px;
+	height: 140px;
+	position: relative;
 }
 
 .fs-file-background {
-  position: absolute;
-  z-index: -10;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+	position: absolute;
+	z-index: -10;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
 }
 
 .fs-file-background.fs-url {
-  background-size: cover;
+	background-size: cover;
 }
 
 .fs-file-title {
-  width: 100%;
-  position: absolute;
-  bottom: 0;
+	width: 100%;
+	position: absolute;
+	bottom: 0;
 
-  background-color: rgba(20, 20, 20, 0.6);
+	background-color: rgba(20, 20, 20, 0.6);
 
-  color: #fff;
-  word-wrap: nowrap;
+	color: #fff;
+	word-wrap: nowrap;
 }

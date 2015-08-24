@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/nfnt/resize"
 	"image"
-	"image/jpeg"
 	_ "image/gif"
+	"image/jpeg"
 	_ "image/png"
 	"io"
 	"mime"
@@ -13,13 +13,12 @@ import (
 
 var fileThumbers []FileThumber
 
-
 func init() {
 	RegisterFileThumber(&ImageThumber{})
 }
 
-type FileThumber interface{
-	Accepted()                                   []string
+type FileThumber interface {
+	Accepted() []string
 	Thumb(in io.Reader, out io.Writer, w, h int) error
 }
 
@@ -39,11 +38,10 @@ func FindFileThumber(file *File) FileThumber {
 	return nil
 }
 
-
-type ImageThumber struct { }
+type ImageThumber struct{}
 
 func (this *ImageThumber) Accepted() []string {
-	return []string {
+	return []string{
 		"image/jpeg",
 		"image/png",
 		"image/gif",
