@@ -241,23 +241,3 @@ func getPageTemplate(name string) *template.Template {
 		}
 	}
 }
-
-func htMainPage(config *Config, static map[string][]string) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
-		err := getPageTemplate("main.html").Execute(w, map[string]interface{}{
-			"build":   BUILD,
-			"version": VERSION,
-
-			"urlroot": config.URLRoot,
-			"assets":  static,
-			"time":    time.Now(),
-
-			"piwik":       config.Piwik,
-			"piwikRoot":   config.PiwikRoot,
-			"piwikSiteID": config.PiwikSiteID,
-		})
-		if err != nil {
-			panic(err)
-		}
-	}
-}
