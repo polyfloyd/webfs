@@ -13,17 +13,27 @@
 	bottom: 0;
 }
 
-.fs-file-background.fs-url {
+.fs-file-background.fs-thumb {
+	/* Ensure the background always overlaps when it is a proper thumbnail. */
 	background-size: cover;
 }
 
 .fs-file-title {
 	width: 100%;
+	margin: 0;
 	position: absolute;
 	bottom: 0;
-
-	background-color: rgba(20, 20, 20, 0.6);
-
-	color: #fff;
+	left: 0;
 	word-wrap: nowrap;
+	color: #ddd;
+	background-color: rgba(20, 20, 20, 0.6);
+}
+
+.fs-file.fs-file-type-image .fs-file-title {
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+.fs-file.fs-file-type-image:hover .fs-file-title {
+	opacity: 1;
 }
