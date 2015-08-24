@@ -2,6 +2,8 @@ package main
 
 import (
 	assets "./assets-go"
+	"./thumb"
+	_ "./thumb/image"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
@@ -181,7 +183,7 @@ func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if fi, ok := file.(*File); ok {
-			if th := FindFileThumber(fi); th != nil {
+			if th := thumb.FindThumber(fi.path); th != nil {
 				if reader, err := fi.Open(); err != nil {
 					panic(err)
 				} else {
