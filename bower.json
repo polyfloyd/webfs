@@ -6,9 +6,10 @@
   ],
   "private": true,
   "dependencies": {
+    "backbone": "~1.2.2",
     "bootstrap": "3.3.2",
     "jquery": "2.1.3",
     "mustache": "2.0.0",
-    "poly.js": "https://git.polyfloyd.net/polyfloyd/poly.js.git#a6d643394f4351e20087e6e4a9da2715331d514b"
+    "underscore": "~1.8.3"
   }
 }

@@ -152,7 +152,7 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 				})
 			}
 
-			getPageTemplate("main.html").Execute(w, map[string]interface{}{
+			err := getPageTemplate("main.html").Execute(w, map[string]interface{}{
 				"build":   BUILD,
 				"version": VERSION,
 
@@ -168,6 +168,9 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 				"path":  p,
 				"files": names,
 			})
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }

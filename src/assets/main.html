@@ -34,7 +34,6 @@
 		</script>
 		<noscript><img src="{{ .piwikRoot }}piwik.php?idsite={{ .piwikSiteID }}" style="border:0;" alt="" /></noscript>
 	{{ end }}
-
 </head>
 <body>
 	<div class="container-fluid">
@@ -47,21 +46,7 @@
 			</div>
 		</div>
 
-		<div class="fs-file-list container-fluid">
-			<template id="fs-file-tmpl">
-				{{ `{{={| |}=}}` }}
-				<a
-					class="fs-file col-md-1"
-					href="{{ .urlroot }}/fs/{{ .fs.Name }}/view{| path |}">
-					<div
-						class="fs-file-background fs-file-type-{| type |} {|# hasThumb |}fs-url{|/ hasThumb |}"
-						title="{| name |}"
-						style="{|# hasThumb |}background-image:url('{{ .urlroot }}/fs/{{ .fs.Name }}/thumb{| path |}'){|/ hasThumb |}">
-					</div>
-					<p class="fs-file-title">{| name |}</p>
-				</a>
-			</template>
-		</div>
+		<div class="fs-file-list container-fluid"></div>
 
 		<div class="fs-footer text-center">
 			<small>
@@ -75,7 +60,8 @@
 	<script>
 		initApp({
 			files: {{ .files }},
-			path: '{{ .path }}',
+			fs:    '{{ .fs.Name }}',
+			path:  '{{ .path }}',
 		});
 	</script>
 </body>

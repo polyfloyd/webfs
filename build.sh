@@ -19,9 +19,9 @@ ln -s "$DIR_BOWER/bootstrap/dist/css/bootstrap.css"                        "$ASS
 
 mkdir -p "$ASSETS/public/00-dep/js"
 ln -s "$DIR_BOWER/jquery/dist/jquery.js"                                   "$ASSETS/public/00-dep/js/00-jquery.js"
+ln -s "$DIR_BOWER/underscore/underscore.js"                                "$ASSETS/public/00-dep/js/01-backbone.js"
+ln -s "$DIR_BOWER/backbone/backbone.js"                                    "$ASSETS/public/00-dep/js/10-backbone.js"
 ln -s "$DIR_BOWER/bootstrap/dist/js/bootstrap.js"                          "$ASSETS/public/00-dep/js/10-bootstrap.js"
-ln -s "$DIR_BOWER/poly.js/src/poly.js"                                     "$ASSETS/public/00-dep/js/10-poly.js"
-ln -s "$DIR_BOWER/poly.js/src/poly-fill.js"                                "$ASSETS/public/00-dep/js/poly-fill.js"
 ln -s "$DIR_BOWER/mustache/mustache.js"                                    "$ASSETS/public/00-dep/js/mustache.js"
 
 mkdir -p "$ASSETS/public/00-dep/fonts"

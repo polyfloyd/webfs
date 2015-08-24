@@ -1,11 +1,26 @@
 'use strict';
 
-var FileView = Poly.View.extend();
+var FileTileView = Backbone.View.extend({
+	initialize: function(args) {
+		this.file = args.file;
+		this.fs   = args.fs;
+		this.setElement($(this.template({
+			file:    this.file,
+			fs:      args.fs,
+			urlroot: URLROOT,
+		}))[0]);
+	},
 
-FileView.prototype.init = function(file, tmpl) {
-	this.hasThumb = file.hasThumb;
-	this.name     = file.name;
-	this.path     = file.path;
-	this.type     = file.type;
-	this.el = $(Mustache.render(tmpl, this))[0];
-};
+	template: _.template(
+		'<a '+
+			'class="fs-file col-md-1"'+
+			'href="<%= urlroot %>/fs/<%= fs %>/view<%- file.path %>">'+
+			'<div '+
+				'class="fs-file-background fs-file-type-<%- file.type %> <%= file.hasThumb ? \'fs-url\' : \'\' %>"'+
+				'title="<%- name %>"'+
+				'style="<% if (file.hasThumb) { %>background-image: url(\'<%= urlroot %>/fs/<%= fs %>/thumb<%- file.path %>\')<% } %>">'+
+			'</div>'+
+			'<p class="fs-file-title"><%- file.name %></p>'+
+		'</a>'
+	),
+});
