@@ -4,6 +4,7 @@ import (
 	assets "./assets-go"
 	"./thumb"
 	_ "./thumb/image"
+	memcache "./thumb/memcache"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
@@ -176,6 +177,8 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 }
 
 func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
+	var cache thumb.Cache = memcache.NewCache()
+
 	return func(w http.ResponseWriter, req *http.Request) {
 		p := path.Join("/", mux.Vars(req)["path"])
 		file := fs.Find(p)
@@ -186,18 +189,36 @@ func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if fi, ok := file.(*File); ok {
-			if th := thumb.FindThumber(fi.path); th != nil {
-				if reader, err := fi.Open(); err != nil {
-					panic(err)
-				} else {
-					defer reader.Close()
-					if err := th.Thumb(reader, w, 140, 140); err != nil {
+			const width = 140
+			const height = 140
+			cachedThumb, err := cache.Get(fi.path, width, height)
+			if err != nil {
+				panic(err)
+			}
+
+			if cachedThumb == nil {
+				// Attempt to generate a thumbnail for the requested file.
+				if th := thumb.FindThumber(fi.path); th != nil {
+					origFileReader, err := fi.Open()
+					if err != nil {
+						panic(err)
+					}
+					defer origFileReader.Close()
+
+					cacheWriter := cache.Put(fi.path, width, height)
+					defer cacheWriter.Close()
+					thumbTee := io.MultiWriter(w, cacheWriter)
+					if err := th.Thumb(origFileReader, thumbTee, width, height); err != nil {
 						panic(err)
 					}
 				}
+
+			} else {
+				defer cachedThumb.Close()
+				if _, err := io.Copy(w, cachedThumb); err != nil {
+					panic(err)
+				}
 			}
-		} else {
-			http.NotFound(w, req)
 		}
 	}
 }

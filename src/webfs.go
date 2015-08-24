@@ -103,7 +103,7 @@ func (fs *Filesystem) FindDir(path string) map[string]interface{} {
 			return dir
 		}
 	}
-	return map[string]interface{}{}
+	return nil
 }
 
 func (fs *Filesystem) FindFile(p string) *File {
