@@ -1,33 +1,59 @@
 package thumb
 
 import (
+	"../fs"
+	"image"
 	"io"
 	"mime"
+	"net/http"
 	"path"
 )
 
 var thumbers []Thumber
 
 type Thumber interface {
-	// Returns a list of mimetypes this thumber accepts.
-	Accepted() []string
+	// Checks wether the thumber is capable of creating a thumbnail of the
+	// specified file.
+	Accepts(file *fs.File) bool
 
-	// Creates a thumbnail with the specified dimensions. It is assumed that
-	// all thumbers produce their thumbnails in JPEG format.
-	Thumb(in io.Reader, out io.Writer, w, h int) error
+	// Creates a thumbnail with the specified dimensions.
+	Thumb(file *fs.File, w, h int) (image.Image, error)
 }
 
 func RegisterThumber(thumber Thumber) {
 	thumbers = append(thumbers, thumber)
 }
 
-func FindThumber(filepath string) Thumber {
-	fileMime := mime.TypeByExtension(path.Ext(filepath))
+// Convencience function to make writing the Accepts() method a bit easier.
+// Takes a file and a set of mimetypes the file should match.
+//
+// This function attempts to determine the type using the filename and falls
+// back to http.DetectContentType() if that does not work.
+func AcceptMimes(file *fs.File, mimes ...string) bool {
+	fileMime := mime.TypeByExtension(path.Ext(file.Path))
+	if fileMime == "" || fileMime == "application/octet-stream" {
+		fd, err := file.Open()
+		if err != nil {
+			return false
+		}
+		defer fd.Close()
+		var buf [512]byte
+		n, _ := fd.Read(buf[:])
+		fileMime = http.DetectContentType(buf[:n])
+	}
+
+	for _, mimetype := range mimes {
+		if fileMime == mimetype {
+			return true
+		}
+	}
+	return false
+}
+
+func FindThumber(file *fs.File) Thumber {
 	for _, th := range thumbers {
-		for _, mime := range th.Accepted() {
-			if mime == fileMime {
-				return th
-			}
+		if th.Accepts(file) {
+			return th
 		}
 	}
 	return nil

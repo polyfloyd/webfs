@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"html/template"
+	"image/jpeg"
 	"io"
 	"log"
 	"mime"
@@ -221,26 +222,27 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 
 		if cachedThumb == nil {
 			// Attempt to generate a thumbnail for the requested file.
-			if th := thumb.FindThumber(file.Path); th != nil {
-				origFileReader, err := file.Open()
-				if err != nil {
-					panic(err)
-				}
-				defer origFileReader.Close()
-
+			if th := thumb.FindThumber(file); th != nil {
 				cacheWriter := cache.Put(file.RealPath(), width, height)
-				defer cacheWriter.Close()
-				thumbTee := io.MultiWriter(w, cacheWriter)
-				if err := th.Thumb(origFileReader, thumbTee, width, height); err != nil {
-					panic(err)
+				img, err := th.Thumb(file, width, height)
+				if err != nil {
+					log.Println(err)
+				} else {
+					jpeg.Encode(io.MultiWriter(w, cacheWriter), img, nil)
+					cacheWriter.Close()
+					return
 				}
+				cacheWriter.Close() // Close now, so Destroy does not deadlock.
+				cache.Destroy(file.RealPath(), width, height)
 			}
 
-		} else {
-			defer cachedThumb.Close()
-			if _, err := io.Copy(w, cachedThumb); err != nil {
-				panic(err)
-			}
+			http.NotFound(w, req)
+			return
+		}
+
+		defer cachedThumb.Close()
+		if _, err := io.Copy(w, cachedThumb); err != nil {
+			panic(err)
 		}
 	}
 }

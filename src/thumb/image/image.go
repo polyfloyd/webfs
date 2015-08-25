@@ -2,12 +2,12 @@ package image
 
 import (
 	thumb ".."
+	"../../fs"
 	"github.com/nfnt/resize"
 	"image"
 	_ "image/gif"
-	"image/jpeg"
+	_ "image/jpeg"
 	_ "image/png"
-	"io"
 )
 
 func init() {
@@ -16,23 +16,22 @@ func init() {
 
 type ImageThumber struct{}
 
-func (this ImageThumber) Accepted() []string {
-	return []string{
-		"image/jpeg",
-		"image/png",
-		"image/gif",
-	}
+func (ImageThumber) Accepts(file *fs.File) bool {
+	return thumb.AcceptMimes(file, "image/jpeg", "image/png", "image/gif")
 }
 
-func (this ImageThumber) Thumb(in io.Reader, out io.Writer, w, h int) error {
-	img, _, err := image.Decode(in)
+func (ImageThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
+	fd, err := file.Open()
 	if err != nil {
-		return err
+		return nil, err
+	}
+	defer fd.Close()
+
+	img, _, err := image.Decode(fd)
+	if err != nil {
+		return nil, err
 	}
 
 	// Preserve aspect ratio by setting height to 0
-	result := resize.Resize(uint(w), 0, img, resize.NearestNeighbor)
-	jpeg.Encode(out, result, nil)
-
-	return nil
+	return resize.Resize(uint(w), 0, img, resize.NearestNeighbor), nil
 }
