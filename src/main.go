@@ -32,6 +32,7 @@ var (
 )
 
 var (
+	startTime    = time.Now()
 	pageTemlates = map[string]*template.Template{}
 )
 
@@ -55,7 +56,11 @@ type AssetServeHandler struct {
 
 func (h *AssetServeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(h.name)))
-	io.Copy(w, bytes.NewReader(assets.MustAsset(h.name)))
+	modTime := startTime
+	if BUILD == "debug" {
+		modTime = time.Now()
+	}
+	http.ServeContent(w, req, h.name, modTime, bytes.NewReader(assets.MustAsset(h.name)))
 }
 
 func main() {
@@ -146,12 +151,7 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 		}
 
 		if children == nil {
-			if fd, err := file.Open(); err != nil {
-				panic(err)
-			} else {
-				defer fd.Close()
-				io.Copy(w, fd)
-			}
+			http.ServeFile(w, req, file.RealPath())
 
 		} else {
 			files := []map[string]interface{}{}
