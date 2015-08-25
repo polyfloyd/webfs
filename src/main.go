@@ -4,6 +4,7 @@ import (
 	assets "./assets-go"
 	"./fs"
 	"./thumb"
+	_ "./thumb/directory"
 	_ "./thumb/image"
 	"./thumb/memcache"
 	"bytes"
@@ -208,7 +209,7 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 			panic(err)
 		}
 
-		if file == nil || file.Info.IsDir() {
+		if file == nil {
 			http.NotFound(w, req)
 			return
 		}
