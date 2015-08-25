@@ -84,7 +84,10 @@ func main() {
 		if _, ok := filesystems[fsConf.Name]; ok {
 			log.Fatalf("Duplicate filesystem \"%v\"", fsConf.Name)
 		}
-		webfs := NewFilesystem(fsConf.Path, fsConf.Name)
+		webfs, err := NewFilesystem(fsConf.Path, fsConf.Name)
+		if err != nil {
+			log.Fatal(err)
+		}
 		filesystems[fsConf.Name] = webfs
 
 		r.Path("/fs/" + fsConf.Name + "/view/{path:.*}").HandlerFunc(htFsView(webfs, &config))
@@ -126,28 +129,36 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 	}
 
 	return func(w http.ResponseWriter, req *http.Request) {
-		p := path.Join("/", mux.Vars(req)["path"])
-		file := fs.Find(p)
+		reqPath := path.Join("/", mux.Vars(req)["path"])
+		file, err := fs.Find(reqPath)
+		if err != nil {
+			panic(err)
+		}
 
 		if file == nil {
 			http.NotFound(w, req)
 			return
 		}
 
-		if fi, ok := file.(*File); ok {
-			if fd, err := fi.Open(); err != nil {
+		children, err := file.Children()
+		if err != nil {
+			panic(err)
+		}
+
+		if children == nil {
+			if fd, err := file.Open(); err != nil {
 				panic(err)
 			} else {
 				defer fd.Close()
 				io.Copy(w, fd)
 			}
 
-		} else if dir, ok := file.(map[string]interface{}); ok {
-			names := []map[string]interface{}{}
-			for name := range dir {
-				names = append(names, map[string]interface{}{
+		} else {
+			files := []map[string]interface{}{}
+			for name := range children {
+				files = append(files, map[string]interface{}{
 					"name":     name,
-					"path":     path.Join(p, name),
+					"path":     path.Join(reqPath, name),
 					"type":     "generic", // TODO
 					"hasThumb": true,      // TODO
 				})
@@ -166,8 +177,8 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 				"piwikSiteID": config.PiwikSiteID,
 
 				"fs":    fs,
-				"path":  p,
-				"files": names,
+				"path":  reqPath,
+				"files": files,
 			})
 			if err != nil {
 				panic(err)
@@ -181,43 +192,44 @@ func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 
 	return func(w http.ResponseWriter, req *http.Request) {
 		p := path.Join("/", mux.Vars(req)["path"])
-		file := fs.Find(p)
+		file, err := fs.Find(p)
+		if err != nil {
+			panic(err)
+		}
 
-		if file == nil {
+		if file == nil || file.Info.IsDir() {
 			http.NotFound(w, req)
 			return
 		}
 
-		if fi, ok := file.(*File); ok {
-			const width = 140
-			const height = 140
-			cachedThumb, err := cache.Get(fi.path, width, height)
-			if err != nil {
-				panic(err)
-			}
+		const width = 140
+		const height = 140
+		cachedThumb, err := cache.Get(file.RealPath(), width, height)
+		if err != nil {
+			panic(err)
+		}
 
-			if cachedThumb == nil {
-				// Attempt to generate a thumbnail for the requested file.
-				if th := thumb.FindThumber(fi.path); th != nil {
-					origFileReader, err := fi.Open()
-					if err != nil {
-						panic(err)
-					}
-					defer origFileReader.Close()
-
-					cacheWriter := cache.Put(fi.path, width, height)
-					defer cacheWriter.Close()
-					thumbTee := io.MultiWriter(w, cacheWriter)
-					if err := th.Thumb(origFileReader, thumbTee, width, height); err != nil {
-						panic(err)
-					}
-				}
-
-			} else {
-				defer cachedThumb.Close()
-				if _, err := io.Copy(w, cachedThumb); err != nil {
+		if cachedThumb == nil {
+			// Attempt to generate a thumbnail for the requested file.
+			if th := thumb.FindThumber(file.Path); th != nil {
+				origFileReader, err := file.Open()
+				if err != nil {
 					panic(err)
 				}
+				defer origFileReader.Close()
+
+				cacheWriter := cache.Put(file.RealPath(), width, height)
+				defer cacheWriter.Close()
+				thumbTee := io.MultiWriter(w, cacheWriter)
+				if err := th.Thumb(origFileReader, thumbTee, width, height); err != nil {
+					panic(err)
+				}
+			}
+
+		} else {
+			defer cachedThumb.Close()
+			if _, err := io.Copy(w, cachedThumb); err != nil {
+				panic(err)
 			}
 		}
 	}
@@ -225,7 +237,7 @@ func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 
 func htFsGet(webfs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte("get"))
+		w.Write([]byte("get")) // TODO
 	}
 }
 
