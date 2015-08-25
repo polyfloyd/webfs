@@ -155,12 +155,21 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 
 		} else {
 			files := []map[string]interface{}{}
-			for name := range children {
+			for name, child := range children {
 				files = append(files, map[string]interface{}{
-					"name":     name,
-					"path":     path.Join(reqPath, name),
-					"type":     "generic", // TODO
-					"hasThumb": true,      // TODO
+					"name": name,
+					"path": child.Path,
+					"type": func() string {
+						if child.Info.IsDir() {
+							return "directory"
+						} else if spl := strings.Split(child.MimeType(), "/"); len(spl) == 2 {
+							// Use the first part of the mime as filetype.
+							return spl[0]
+						} else {
+							return "generic"
+						}
+					}(),
+					"hasThumb": true, // TODO
 				})
 			}
 
