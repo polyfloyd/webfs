@@ -2,9 +2,10 @@ package main
 
 import (
 	assets "./assets-go"
+	"./fs"
 	"./thumb"
 	_ "./thumb/image"
-	memcache "./thumb/memcache"
+	"./thumb/memcache"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
@@ -84,12 +85,12 @@ func main() {
 		r.Path(urlPath).Handler(&AssetServeHandler{name: file})
 	}
 
-	filesystems := map[string]*Filesystem{}
+	filesystems := map[string]*fs.Filesystem{}
 	for _, fsConf := range config.FS {
 		if _, ok := filesystems[fsConf.Name]; ok {
 			log.Fatalf("Duplicate filesystem \"%v\"", fsConf.Name)
 		}
-		webfs, err := NewFilesystem(fsConf.Path, fsConf.Name)
+		webfs, err := fs.NewFilesystem(fsConf.Path, fsConf.Name)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -111,7 +112,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *http.Request) {
+func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req *http.Request) {
 	static := map[string][]string{
 		"js":  []string{},
 		"css": []string{},
@@ -196,7 +197,7 @@ func htFsView(fs *Filesystem, config *Config) func(w http.ResponseWriter, req *h
 	}
 }
 
-func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
+func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request) {
 	var cache thumb.Cache = memcache.NewCache()
 
 	return func(w http.ResponseWriter, req *http.Request) {
@@ -244,7 +245,7 @@ func htFsThumb(fs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func htFsGet(webfs *Filesystem) func(w http.ResponseWriter, req *http.Request) {
+func htFsGet(webfs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("get")) // TODO
 	}
