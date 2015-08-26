@@ -1,9 +1,12 @@
 package memcache
 
 import (
+	thumb ".."
+	"../../fs"
 	"bytes"
 	"io"
 	"sync"
+	"time"
 )
 
 // An implementation of a ThumbCache storing all its thumbs in sytem memory.
@@ -20,16 +23,16 @@ func NewCache() *ThumbMemCache {
 	}
 }
 
-func (cache *ThumbMemCache) Get(filepath string, w, h int) (io.ReadCloser, error) {
+func (cache *ThumbMemCache) Get(file *fs.File, w, h int) (thumb.ReadSeekCloser, time.Time, error) {
 	cache.lock.RLock()
 	thumb, ok := cache.store[cacheKey{
 		w:    w,
 		h:    h,
-		path: filepath,
+		path: file.RealPath(),
 	}]
 	cache.lock.RUnlock()
 	if !ok {
-		return nil, nil
+		return nil, time.Unix(0, 0), nil
 	}
 
 	// Wait if the thumbnail is being written. The lock will be realeased by
@@ -38,11 +41,11 @@ func (cache *ThumbMemCache) Get(filepath string, w, h int) (io.ReadCloser, error
 	return thumbReader{
 		Reader: bytes.NewReader(thumb.buf.Bytes()),
 		thumb:  thumb,
-	}, nil
+	}, thumb.modTime, nil
 }
 
-func (cache *ThumbMemCache) Put(filepath string, w, h int) io.WriteCloser {
-	thumb := &cachedThumb{}
+func (cache *ThumbMemCache) Put(file *fs.File, w, h int) (io.WriteCloser, error) {
+	thumb := &cachedThumb{modTime: file.Info.ModTime()}
 	// Lock now so we don't cause any race conditions with Get(). The lock is
 	// released by the call to Close() of the returned writer.
 	thumb.lock.Lock()
@@ -51,22 +54,22 @@ func (cache *ThumbMemCache) Put(filepath string, w, h int) io.WriteCloser {
 	cache.store[cacheKey{
 		w:    w,
 		h:    h,
-		path: filepath,
+		path: file.RealPath(),
 	}] = thumb
 	cache.lock.Unlock()
 
 	return &thumbWriter{
 		Buffer: &thumb.buf,
 		thumb:  thumb,
-	}
+	}, nil
 }
 
-func (cache *ThumbMemCache) Destroy(filepath string, w, h int) error {
+func (cache *ThumbMemCache) Destroy(file *fs.File, w, h int) error {
 	cache.lock.Lock()
 	key := cacheKey{
 		w:    w,
 		h:    h,
-		path: filepath,
+		path: file.RealPath(),
 	}
 
 	if cth, ok := cache.store[key]; ok {
@@ -80,8 +83,9 @@ func (cache *ThumbMemCache) Destroy(filepath string, w, h int) error {
 }
 
 type cachedThumb struct {
-	lock sync.RWMutex
-	buf  bytes.Buffer
+	buf     bytes.Buffer
+	modTime time.Time
+	lock    sync.RWMutex
 }
 
 type cacheKey struct {

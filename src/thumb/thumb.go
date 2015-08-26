@@ -2,14 +2,26 @@ package thumb
 
 import (
 	"../fs"
+	"bytes"
 	"image"
+	"image/jpeg"
 	"io"
 	"mime"
 	"net/http"
 	"path"
+	"time"
 )
 
-var thumbers []Thumber
+var (
+	thumbers   []Thumber
+	thumbCache Cache
+)
+
+type ReadSeekCloser interface {
+	io.Closer
+	io.Reader
+	io.Seeker
+}
 
 type Thumber interface {
 	// Checks wether the thumber is capable of creating a thumbnail of the
@@ -59,6 +71,54 @@ func FindThumber(file *fs.File) Thumber {
 	return nil
 }
 
+// This is the preferred way of creating a thumbnail. This function will manage
+// the cache set by SetCache() and update the thumbnail if the file
+// modification time changes.
+//
+// The thumbnail is exposed as a JPEG image.
+func ThumbFile(file *fs.File, width, height int) (ReadSeekCloser, time.Time, error) {
+	cachedThumb, modTime, err := thumbCache.Get(file, width, height)
+	if err != nil {
+		return nil, time.Unix(0, 0), err
+	}
+
+	if cachedThumb == nil || file.Info.ModTime().After(modTime) {
+		th := FindThumber(file)
+		if th == nil {
+			return nil, time.Unix(0, 0), nil
+		}
+
+		cacheWriter, err := thumbCache.Put(file, width, height)
+		if err != nil {
+			return nil, time.Unix(0, 0), err
+		}
+
+		img, err := th.Thumb(file, width, height)
+		if err != nil {
+			cacheWriter.Close()
+			thumbCache.Destroy(file, width, height)
+			return nil, time.Unix(0, 0), err
+		}
+
+		buf := &bufSeekCloser{}
+		jpeg.Encode(io.MultiWriter(&buf.buf, cacheWriter), img, nil)
+		cacheWriter.Close()
+		buf.Reader = bytes.NewReader(buf.buf.Bytes())
+		return buf, file.Info.ModTime(), nil
+	}
+
+	return cachedThumb, modTime, nil
+}
+
+type bufSeekCloser struct {
+	buf bytes.Buffer
+	*bytes.Reader
+}
+
+func (bufSeekCloser) Close() error {
+	return nil
+}
+
 // Specifies a caching mechanism for keeping thumbnails without having to
 // regenerate them every single time one is requested.
 // The implementation should be thread-safe.
@@ -70,13 +130,20 @@ type Cache interface {
 	// If a thumbnail matching the criteria is in the process of being stored
 	// by Put(), this function will block until the thumbnail is available or
 	// an error occurs, in which case nil is returned and an error is set.
-	Get(filepath string, w, h int) (io.ReadCloser, error)
+	//
+	// The returned time is the creation time of the thumbnail, always later
+	// than the modifacation time of the file.
+	Get(file *fs.File, w, h int) (ReadSeekCloser, time.Time, error)
 
 	// Stores a thumbnail by providing the writer the thumbnail image should be
 	// written to.
-	Put(filepath string, w, h int) io.WriteCloser
+	Put(file *fs.File, w, h int) (io.WriteCloser, error)
 
 	// Removes a cached thumbnail. If w and h are 0, all thumbnails of this
 	// file are removed. This function is a no-op if no such thumbnail exists.
-	Destroy(filepath string, w, h int) error
+	Destroy(file *fs.File, w, h int) error
+}
+
+func SetCache(cache Cache) {
+	thumbCache = cache
 }

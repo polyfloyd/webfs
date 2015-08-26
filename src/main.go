@@ -11,8 +11,6 @@ import (
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"html/template"
-	"image/jpeg"
-	"io"
 	"log"
 	"mime"
 	"net/http"
@@ -69,6 +67,8 @@ func (h *AssetServeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 func main() {
 	log.Printf("Version: %v (%v)\n", VERSION, BUILD)
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	thumb.SetCache(memcache.NewCache())
 
 	config := Config{}
 	if in, err := os.Open(CONFFILE); err != nil {
@@ -203,8 +203,6 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 }
 
 func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request) {
-	var cache thumb.Cache = memcache.NewCache()
-
 	return func(w http.ResponseWriter, req *http.Request) {
 		p := path.Join("/", mux.Vars(req)["path"])
 		file, err := fs.Find(p)
@@ -219,35 +217,20 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 
 		const width = 140
 		const height = 140
-		cachedThumb, err := cache.Get(file.RealPath(), width, height)
+
+		cachedThumb, modTime, err := thumb.ThumbFile(file, width, height)
 		if err != nil {
-			panic(err)
-		}
-
-		if cachedThumb == nil {
-			// Attempt to generate a thumbnail for the requested file.
-			if th := thumb.FindThumber(file); th != nil {
-				cacheWriter := cache.Put(file.RealPath(), width, height)
-				img, err := th.Thumb(file, width, height)
-				if err != nil {
-					log.Println(err)
-				} else {
-					jpeg.Encode(io.MultiWriter(w, cacheWriter), img, nil)
-					cacheWriter.Close()
-					return
-				}
-				cacheWriter.Close() // Close now, so Destroy does not deadlock.
-				cache.Destroy(file.RealPath(), width, height)
-			}
-
+			log.Println(err)
 			http.NotFound(w, req)
 			return
 		}
-
-		defer cachedThumb.Close()
-		if _, err := io.Copy(w, cachedThumb); err != nil {
-			panic(err)
+		if cachedThumb == nil {
+			http.NotFound(w, req)
+			return
 		}
+		defer cachedThumb.Close()
+
+		http.ServeContent(w, req, file.Info.Name(), modTime, cachedThumb)
 	}
 }
 
