@@ -1,3 +1,14 @@
+.fs-header {
+	width: 100%;
+	padding: 0.4em;
+	position: fixed;
+	background-color: #fff;
+}
+
+.fs-header + * {
+	margin-top: 2em;
+}
+
 .fs-file {
 	width: 140px;
 	height: 140px;

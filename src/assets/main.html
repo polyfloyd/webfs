@@ -37,25 +37,15 @@
 </head>
 <body>
 	<div class="container-fluid">
-
-		<div class="fs-header">
-			<div class="fs-path-bar">
-				<template id="fs-path-bar-segment-tmpl">
-					<a class="fs-path-segment" href="{{ .urlroot }}/{{ .fs.Name }}/{% .path %}">{% .name %}</a>
-				</template>
-			</div>
-		</div>
-
+		<div class="fs-header"></div>
 		<div class="fs-file-list container-fluid"></div>
-
 		<div class="fs-footer text-center">
 			<small>
 				&copy; <a target="_blank" href="https://twitter.com/polyfloyd">PolyFloyd</a> {{ .time.Year }}
+				<br />
+				Version: {{ .version }}
 			</small>
-			<br />
-			<small>Version: {{ .version }}</small>
 		</div>
-
 	</div>
 	<script>
 		initApp({
