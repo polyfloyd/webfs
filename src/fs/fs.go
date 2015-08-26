@@ -25,6 +25,10 @@ func (file File) RealPath() string {
 	return path.Join(file.fs.RealPath, file.Path)
 }
 
+func (file File) IsDotfile() bool {
+	return file.Info.Name()[0] == '.'
+}
+
 // Gets the directory contents of the file, or nil if the file is not a
 // directory.
 func (file File) Children() (map[string]File, error) {

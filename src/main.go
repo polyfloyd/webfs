@@ -143,7 +143,7 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 			panic(err)
 		}
 
-		if file == nil {
+		if file == nil || file.IsDotfile() {
 			http.NotFound(w, req)
 			return
 		}
@@ -159,6 +159,9 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 		} else {
 			files := []map[string]interface{}{}
 			for name, child := range children {
+				if child.IsDotfile() {
+					continue // Hide dotfiles
+				}
 				files = append(files, map[string]interface{}{
 					"name": name,
 					"path": child.Path,
@@ -209,7 +212,7 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 			panic(err)
 		}
 
-		if file == nil {
+		if file == nil || file.IsDotfile() {
 			http.NotFound(w, req)
 			return
 		}
