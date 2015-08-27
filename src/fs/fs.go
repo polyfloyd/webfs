@@ -29,6 +29,23 @@ func (file File) IsDotfile() bool {
 	return file.Info.Name()[0] == '.'
 }
 
+func (file File) Parent() *File {
+	parentPath := path.Dir(file.Path)
+	if parentPath == "." || parentPath == "/" {
+		return nil
+	}
+
+	info, err := os.Stat(parentPath)
+	if err != nil {
+		return nil
+	}
+	return &File{
+		Info: info,
+		Path: parentPath,
+		fs:   file.fs,
+	}
+}
+
 // Gets the directory contents of the file, or nil if the file is not a
 // directory.
 func (file File) Children() (map[string]File, error) {

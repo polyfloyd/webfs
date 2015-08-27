@@ -148,6 +148,10 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 			return
 		}
 
+		if !Authenticate(file, w, req) {
+			return
+		}
+
 		children, err := file.Children()
 		if err != nil {
 			panic(err)
@@ -214,6 +218,11 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 			http.NotFound(w, req)
 			return
 		}
+
+		// TODO
+		// We don't check for password files when serving thumbnails for now.
+		// Not a whole lot of info can be leaked in 140x140 images. Especially
+		// with the program's current usage.
 
 		const width = 140
 		const height = 140
