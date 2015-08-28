@@ -7,6 +7,7 @@ import (
 	_ "./thumb/directory"
 	_ "./thumb/image"
 	"./thumb/memcache"
+	_ "./thumb/video"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
