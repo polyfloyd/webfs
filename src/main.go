@@ -30,8 +30,8 @@ const (
 )
 
 var (
-	BUILD   = strings.Trim(string(assets.MustAsset("BUILD")), "\n ")
-	VERSION = strings.Trim(string(assets.MustAsset("VERSION")), "\n ")
+	BUILD   = strings.Trim(string(assets.MustAsset("_BUILD")), "\n ")
+	VERSION = strings.Trim(string(assets.MustAsset("_VERSION")), "\n ")
 )
 
 var (
