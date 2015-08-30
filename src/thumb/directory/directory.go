@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	"log"
 	"math/rand"
 )
 
@@ -80,17 +81,23 @@ func (th DirectoryThumber) MosaicThumb(file *fs.File, w, h int) (image.Image, er
 		Max: image.Point{w, h},
 	})
 
+	retry := false
 	for x := 0; x < nCellsX; x++ {
-		for y := 0; y < nCellsY; y++ {
+		for y := 0; y < nCellsY || retry; y++ {
+			retry = false
+
 			n := rand.Intn(len(thumbableFiles))
 			cellFile := &thumbableFiles[n]
-			if len(thumbableFiles) > 1 {
-				thumbableFiles = append(thumbableFiles[:n], thumbableFiles[n+1:]...)
+			thumbableFiles = append(thumbableFiles[:n], thumbableFiles[n+1:]...)
+			if len(thumbableFiles) == 0 {
+				return nil, fmt.Errorf("No files to create a directory thumbnail")
 			}
 
 			cell, err := thumb.FindThumber(cellFile).Thumb(cellFile, cellW, cellH)
 			if err != nil {
-				return nil, err
+				log.Println(err)
+				retry = true // Retry
+				continue
 			}
 
 			draw.Draw(dst, image.Rectangle{
