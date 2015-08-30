@@ -5,6 +5,7 @@ import (
 	"./fs"
 	"./thumb"
 	_ "./thumb/directory"
+	"./thumb/filecache"
 	_ "./thumb/image"
 	"./thumb/memcache"
 	_ "./thumb/video"
@@ -42,6 +43,8 @@ type Config struct {
 	Address string `json:"address"`
 	URLRoot string `json:"urlroot"`
 
+	Cache *string `json:"cache"`
+
 	Piwik       bool   `json:"piwik"`
 	PiwikRoot   string `json:"piwikroot"`
 	PiwikSiteID int    `json:"piwiksiteid"`
@@ -69,13 +72,21 @@ func main() {
 	log.Printf("Version: %v (%v)\n", VERSION, BUILD)
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	thumb.SetCache(memcache.NewCache())
-
 	config := Config{}
 	if in, err := os.Open(CONFFILE); err != nil {
 		log.Fatal(err)
 	} else if err := json.NewDecoder(in).Decode(&config); err != nil {
 		log.Fatal(err)
+	}
+
+	if config.Cache != nil {
+		cache, err := filecache.NewCache(path.Join(*config.Cache, "thumbs"), 0)
+		if err != nil {
+			log.Fatal(err)
+		}
+		thumb.SetCache(cache)
+	} else {
+		thumb.SetCache(memcache.NewCache())
 	}
 
 	r := mux.NewRouter()

@@ -2,6 +2,8 @@
 	"address": "127.0.0.1:3000",
 	"urlroot": "http://localhost:3000",
 
+	"cache": "~/.cache/webfs",
+
 	"piwik":       false,
 	"piwikroot":   "//piwik.blah/",
 	"piwiksiteid": 1337,
