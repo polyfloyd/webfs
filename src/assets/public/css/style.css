@@ -10,6 +10,11 @@
 	margin-top: 2em;
 }
 
+.fs-header .fs-download {
+	padding: 0 15px;
+	float: right;
+}
+
 .fs-file {
 	width: 140px;
 	height: 140px;

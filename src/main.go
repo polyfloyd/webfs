@@ -260,9 +260,38 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 	}
 }
 
-func htFsGet(webfs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte("get")) // TODO
+func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
+	return func(res http.ResponseWriter, req *http.Request) {
+		reqPath := path.Join("/", mux.Vars(req)["path"])
+		log.Println(reqPath)
+		file, err := webfs.Find(reqPath)
+		if err != nil {
+			panic(err)
+		}
+
+		if file == nil || file.IsDotfile() {
+			http.NotFound(res, req)
+			return
+		}
+
+		res.Header().Set("Content-Type", "application/zip")
+
+		filter := func(file *fs.File) (bool, error) {
+			if file.IsDotfile() {
+				return false, nil
+			}
+
+			// TODO: Slow as shit, will fix later.
+			// TODO: Currently, if subdirectories require authentication, they
+			// are completely culled from the archive. It would be nice to
+			// somehow include them.
+			authenticated, _ := IsAuthenticated(file, req)
+			// Errors arising from IsAuthenticated() are ignored.
+			return authenticated, nil
+		}
+		if err := fs.ZipTreeFilter(file, filter, res); err != nil {
+			panic(err)
+		}
 	}
 }
 
