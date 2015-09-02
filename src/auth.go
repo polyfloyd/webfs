@@ -2,6 +2,7 @@ package main
 
 import (
 	"./fs"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -34,12 +35,6 @@ func findAuthFile(file *fs.File) (*fs.File, error) {
 	return &passwd, nil
 }
 
-func denyAccess(res http.ResponseWriter) {
-	time.Sleep(time.Millisecond * 200) // Mitigate brute force attack.
-	res.Header().Set("WWW-Authenticate", "Basic realm=\"You need a username and password to view these files\"")
-	http.Error(res, "Unauthorized", http.StatusUnauthorized)
-}
-
 // Check if a file needs authentication to view.
 // Returns true if it's safe to transfer the protected resource to the client.
 //
@@ -47,44 +42,50 @@ func denyAccess(res http.ResponseWriter) {
 // contains a list of possible username/password pairs separated by newlines.
 // The username and password are separated by whitespace. Neither the username
 // or password may therefore contain whitespace.
-func Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) bool {
+func IsAuthenticated(file *fs.File, req *http.Request) (bool, error) {
 	passwd, err := findAuthFile(file)
 	if err != nil {
-		log.Println("Error finding password file: ", err)
-		denyAccess(res)
-		return false
+		return false, fmt.Errorf("Error finding password file: ", err)
 	}
 	if passwd == nil {
-		return true
+		return true, nil
 	}
 
 	fd, err := passwd.Open()
 	if err != nil {
-		log.Println("Error opening password file: ", err)
-		denyAccess(res)
-		return false // Deny access if the paswd file can not be read.
+		// Deny access if the paswd file can not be read.
+		return false, fmt.Errorf("Error opening password file: ", err)
 	}
 
 	rUsername, rPassword, ok := req.BasicAuth()
 	if !ok {
-		denyAccess(res)
-		return false
+		return false, nil
 	}
 
 	var buf [2048]byte
 	n, _ := fd.Read(buf[:])
 	matches := passwdMatcher.FindAllStringSubmatch(string(buf[:n]), -1)
 	if matches == nil {
-		log.Printf("Password file \"%v\" is not valid.", passwd.RealPath())
-		denyAccess(res)
-		return false
+		return false, fmt.Errorf("Password file \"%v\" is not valid.", passwd.RealPath())
 	}
 	for _, match := range matches {
 		if match[1] == rUsername && match[2] == rPassword {
-			return true
+			return true, nil
 		}
 	}
 
-	denyAccess(res)
-	return false
+	return false, nil
+}
+
+func Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) bool {
+	authenticated, err := IsAuthenticated(file, req)
+	if err != nil {
+		log.Println(err)
+	}
+	if !authenticated {
+		time.Sleep(time.Millisecond * 200) // Mitigate brute force attack.
+		res.Header().Set("WWW-Authenticate", "Basic realm=\"You need a username and password to view these files\"")
+		http.Error(res, "Unauthorized", http.StatusUnauthorized)
+	}
+	return authenticated
 }
