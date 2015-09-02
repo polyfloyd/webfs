@@ -110,9 +110,9 @@ func main() {
 		}
 		filesystems[fsConf.Name] = webfs
 
-		r.Path("/fs/" + fsConf.Name + "/view/{path:.*}").HandlerFunc(htFsView(webfs, &config))
-		r.Path("/fs/" + fsConf.Name + "/thumb/{path:.*}").HandlerFunc(htFsThumb(webfs))
-		r.Path("/fs/" + fsConf.Name + "/get/{path:.*}").HandlerFunc(htFsGet(webfs))
+		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs, &config))
+		r.Path("/thumb/" + fsConf.Name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs))
+		r.Path("/download/" + fsConf.Name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
 	}
 
 	log.Printf("Now accepting HTTP connections on %v", config.Address)
@@ -180,7 +180,12 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 				}
 				files = append(files, map[string]interface{}{
 					"name": name,
-					"path": child.Path,
+					"path": func() string {
+						if child.Path[0] == '/' {
+							return child.Path[1:]
+						}
+						return child.Path
+					}(),
 					"type": func() string {
 						if child.Info.IsDir() {
 							return "directory"

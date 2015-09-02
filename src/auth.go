@@ -43,6 +43,10 @@ func findAuthFile(file *fs.File) (*fs.File, error) {
 // The username and password are separated by whitespace. Neither the username
 // or password may therefore contain whitespace.
 func IsAuthenticated(file *fs.File, req *http.Request) (bool, error) {
+	if file.Path == "" || file.Path == "/" {
+		return true, nil
+	}
+
 	passwd, err := findAuthFile(file)
 	if err != nil {
 		return false, fmt.Errorf("Error finding password file: ", err)

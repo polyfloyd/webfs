@@ -14,12 +14,12 @@ var FileTileView = Backbone.View.extend({
 	template: _.template(
 		'<a '+
 			'class="fs-file fs-file-type-<%- file.type %> col-md-1"'+
-			'href="<%= urlroot %>/fs/<%= fs %>/view<%- file.path %>">'+
+			'href="<%= urlroot %>/view/<%= fs %>/<%- file.path %>">'+
 			'<div '+
 				'class="fs-file-background <%= file.hasThumb ? \'fs-thumb\' : \'\' %>"'+
 				'title="<%- name %>"'+
 				'style="<% if (file.hasThumb) { %>'+
-					'background-image: url(\'<%= urlroot %>/fs/<%= fs %>/thumb<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>\')'+
+					'background-image: url(\'<%= urlroot %>/thumb/<%= fs %>/<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>.jpg\')'+
 				'<% } %>">'+
 			'</div>'+
 			'<p class="fs-file-title"><%- file.name %></p>'+

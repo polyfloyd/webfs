@@ -102,12 +102,12 @@ func NewFilesystem(path, name string) (*Filesystem, error) {
 }
 
 func (fs *Filesystem) Find(p string) (*File, error) {
-	if s := p[:len(p)-1]; s == "/" {
-		p = s
+	if p == "" || p == "/" {
+		return &fs.Root, nil
 	}
 
-	if p == "/" {
-		return &fs.Root, nil
+	if s := p[:len(p)-1]; s == "/" {
+		p = s
 	}
 
 	currentNode := &fs.Root

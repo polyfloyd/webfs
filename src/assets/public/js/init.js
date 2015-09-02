@@ -6,7 +6,7 @@ function initApp(options) {
 		fs:   options.fs,
 	});
 	pathbar.on('navigate', function(path) {
-		window.location = URLROOT+'/fs/'+options.fs+'/view'+path;
+		window.location = URLROOT+'/view/'+options.fs+'/'+path;
 	});
 	$('.fs-header').append(pathbar.$el);
 
