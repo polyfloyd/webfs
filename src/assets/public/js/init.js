@@ -10,14 +10,21 @@ function initApp(options) {
 	});
 	$('.fs-header').append(pathbar.$el);
 
-	$('.fs-file-list').append(options.files.sort(function(a, b) {
+	var files = options.files.sort(function(a, b) {
 		return a.path > b.path ? 1
 			: a.path < b.path ? -1
 			: 0;
-	}).map(function(file) {
-		return (new FileTileView({
-			file: file,
-			fs:   options.fs,
-		})).el;
-	}));
+	});
+	var tileView = new FileTileView({
+		files: files,
+		fs:    options.fs,
+	});
+	$('.fs-tilelist-container').append(tileView.$el);
+
+	tileView.on('select', function(file, index, files) {
+		if (file.type === 'directory') {
+			window.location = URLROOT+'/view/'+options.fs+'/'+file.path;
+			return;
+		}
+	});
 }

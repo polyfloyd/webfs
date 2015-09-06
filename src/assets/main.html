@@ -36,19 +36,20 @@
 	{{ end }}
 </head>
 <body>
-	<div class="container-fluid">
-		<div class="fs-header">
-			<a class="fs-download" target="_blank" href="{{ .urlroot }}/download/{{ .fs.Name }}/{{ .path }}.zip">Download</a>
-		</div>
-		<div class="fs-file-list container-fluid"></div>
-		<div class="fs-footer text-center">
-			<small>
-				&copy; <a target="_blank" href="https://twitter.com/polyfloyd">PolyFloyd</a> {{ .time.Year }}
-				<br />
-				Version: {{ .version }}
-			</small>
-		</div>
+	<div class="fs-header">
+		<a class="fs-download" target="_blank" href="{{ .urlroot }}/download/{{ .fs.Name }}/{{ .path }}.zip">Download</a>
 	</div>
+
+	<div class="fs-tilelist-container container"></div>
+
+	<div class="fs-footer text-center">
+		<small>
+			&copy; <a target="_blank" href="https://twitter.com/polyfloyd">PolyFloyd</a> {{ .time.Year }}
+			<br />
+			Version: {{ .version }}
+		</small>
+	</div>
+
 	<script>
 		initApp({
 			files: {{ .files }},

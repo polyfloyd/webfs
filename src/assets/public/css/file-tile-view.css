@@ -1,0 +1,42 @@
+.file-tile {
+	width: 140px;
+	height: 140px;
+	position: relative;
+	cursor: pointer;
+	list-style-type: none;
+}
+
+.file-tile .tile-background {
+	position: absolute;
+	z-index: -10;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+}
+
+.file-tile .tile-background.fs-thumb {
+	/* Ensure the background always overlaps when it is a proper thumbnail. */
+	background-size: cover;
+}
+
+.file-tile .file-title {
+	width: 100%;
+	margin: 0;
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	color: #ddd;
+	background-color: rgba(20, 20, 20, 0.6);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.file-tile.file-type-image .file-title {
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+.file-tile.file-type-image:hover .file-title {
+	opacity: 1;
+}
