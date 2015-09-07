@@ -11,9 +11,17 @@ function initApp(options) {
 	$('.fs-header').append(pathbar.$el);
 
 	var files = options.files.sort(function(a, b) {
-		return a.path > b.path ? 1
-			: a.path < b.path ? -1
-			: 0;
+		function dirs(a, b) {
+			return a.type === 'directory' && b.type !== 'directory' ? -1
+				: b.type === 'directory' && a.type !== 'directory' ? 1
+				: 0;
+		}
+		function paths(a, b) {
+			return a.path > b.path ? 1
+				: a.path < b.path ? -1
+				: 0;
+		}
+		return dirs(a, b) || paths(a, b);
 	});
 	var tileView = new FileTileView({
 		files: files,
