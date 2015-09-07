@@ -61,11 +61,11 @@ case ${1:-} in
 		ln -s "$DIR_BOWER/underscore/underscore.js"                                "$ASSETS/public/00-dep/js/01-backbone.js"
 		ln -s "$DIR_BOWER/backbone/backbone.js"                                    "$ASSETS/public/00-dep/js/10-backbone.js"
 		ln -s "$DIR_BOWER/bootstrap/dist/js/bootstrap.js"                          "$ASSETS/public/00-dep/js/bootstrap.js"
-		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.eot"                     "$ASSETS/public/00-dep/fonts/font-awesome.eot"
-		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.svg"                     "$ASSETS/public/00-dep/fonts/font-awesome.svg"
-		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.ttf"                     "$ASSETS/public/00-dep/fonts/font-awesome.ttf"
-		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.woff"                    "$ASSETS/public/00-dep/fonts/font-awesome.woff"
-		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.woff2"                   "$ASSETS/public/00-dep/fonts/font-awesome.woff2"
+		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.eot"              "$ASSETS/public/00-dep/fonts/fontawesome-webfont.eot"
+		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.svg"              "$ASSETS/public/00-dep/fonts/fontawesome-webfont.svg"
+		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.ttf"              "$ASSETS/public/00-dep/fonts/fontawesome-webfont.ttf"
+		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.woff"             "$ASSETS/public/00-dep/fonts/fontawesome-webfont.woff"
+		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.woff2"            "$ASSETS/public/00-dep/fonts/fontawesome-webfont.woff2"
 	;;
 
 	"build")
