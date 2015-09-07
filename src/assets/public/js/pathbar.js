@@ -24,6 +24,9 @@ var PathBar = Backbone.View.extend({
 				return [tupple[0].concat([path]), path];
 			}, [[], ''])[0],
 		}));
+		if (names.length === 0) {
+			this.$('.pathbar-root').addClass('active');
+		}
 		this.$('.pathbar-segment').on('click', function() {
 			self.trigger('navigate', $(this).attr('data-path'));
 		});
@@ -35,9 +38,9 @@ var PathBar = Backbone.View.extend({
 			'data-path="/">'+
 			'<%- fs %>'+
 		'</li>'+
-		'<% names.forEach(function(name, index) { %>'+
+		'<% names.forEach(function(name, index, paths) { %>'+
 			'<li '+
-				'class="pathbar-segment" '+
+				'class="pathbar-segment <%= index === paths.length-1 ? \'active\' : \'\' %>" '+
 				'data-path="<%- paths[index] %>">'+
 				'<%- name %>'+
 			'</li>'+

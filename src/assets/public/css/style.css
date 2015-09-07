@@ -1,10 +1,10 @@
-.fs-header {
-	width: 100%;
-	padding: 0.4em;
-	background-color: #fff;
+* {
+	font-family: Liberation Sans;
+	font-weight: 100;
 }
 
-.fs-header .fs-download {
-	padding: 0 15px;
-	float: right;
+html,
+body {
+	width: 100%;
+	height: 100%;
 }

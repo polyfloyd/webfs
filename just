@@ -56,15 +56,16 @@ case ${1:-} in
 		mkdir -p "$ASSETS/public/00-dep/fonts"
 		ln -s "$DIR_BOWER/bootstrap/dist/css/bootstrap.css"                        "$ASSETS/public/00-dep/css/bootstrap.css"
 		ln -s "$DIR_BOWER/bootstrap/dist/css/bootstrap.css.map"                    "$ASSETS/public/00-dep/css/bootstrap.css.map"
+		ln -s "$DIR_BOWER/font-awesome/css/font-awesome.css"                       "$ASSETS/public/00-dep/css/font-awesome.css"
 		ln -s "$DIR_BOWER/jquery/dist/jquery.js"                                   "$ASSETS/public/00-dep/js/00-jquery.js"
 		ln -s "$DIR_BOWER/underscore/underscore.js"                                "$ASSETS/public/00-dep/js/01-backbone.js"
 		ln -s "$DIR_BOWER/backbone/backbone.js"                                    "$ASSETS/public/00-dep/js/10-backbone.js"
 		ln -s "$DIR_BOWER/bootstrap/dist/js/bootstrap.js"                          "$ASSETS/public/00-dep/js/bootstrap.js"
-		ln -s "$DIR_BOWER/bootstrap/dist/fonts/glyphicons-halflings-regular.eot"   "$ASSETS/public/00-dep/fonts/glyphicons-halflings-regular.eot"
-		ln -s "$DIR_BOWER/bootstrap/dist/fonts/glyphicons-halflings-regular.svg"   "$ASSETS/public/00-dep/fonts/glyphicons-halflings-regular.svg"
-		ln -s "$DIR_BOWER/bootstrap/dist/fonts/glyphicons-halflings-regular.ttf"   "$ASSETS/public/00-dep/fonts/glyphicons-halflings-regular.ttf"
-		ln -s "$DIR_BOWER/bootstrap/dist/fonts/glyphicons-halflings-regular.woff"  "$ASSETS/public/00-dep/fonts/glyphicons-halflings-regular.woff"
-		ln -s "$DIR_BOWER/bootstrap/dist/fonts/glyphicons-halflings-regular.woff2" "$ASSETS/public/00-dep/fonts/glyphicons-halflings-regular.woff2"
+		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.eot"                     "$ASSETS/public/00-dep/fonts/font-awesome.eot"
+		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.svg"                     "$ASSETS/public/00-dep/fonts/font-awesome.svg"
+		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.ttf"                     "$ASSETS/public/00-dep/fonts/font-awesome.ttf"
+		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.woff"                    "$ASSETS/public/00-dep/fonts/font-awesome.woff"
+		ln -s "$DIR_BOWER/font-awesome/fonts/font-awesome.woff2"                   "$ASSETS/public/00-dep/fonts/font-awesome.woff2"
 	;;
 
 	"build")

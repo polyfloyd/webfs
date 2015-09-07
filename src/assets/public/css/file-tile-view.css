@@ -1,9 +1,21 @@
 .file-tile {
 	width: 140px;
+	margin: 3px 6px;
 	height: 140px;
 	position: relative;
+	display: inline-block;
 	cursor: pointer;
 	list-style-type: none;
+	border-radius: 4px;
+	box-shadow: 5px 5px 10px 0 rgba(0, 0, 0, 0.3);
+	transition:
+		box-shadow 0.2s,
+		transform 0.2s;
+}
+
+.file-tile:hover {
+	box-shadow: 5px 5px 10px 0 rgba(0, 0, 0, 0.6);
+	transform: scale(1.05);
 }
 
 .file-tile .tile-background {
@@ -13,30 +25,64 @@
 	left: 0;
 	right: 0;
 	bottom: 0;
+	overflow: hidden;
 }
 
-.file-tile .tile-background.fs-thumb {
+.file-tile.fs-thumb .tile-background {
 	/* Ensure the background always overlaps when it is a proper thumbnail. */
 	background-size: cover;
+}
+
+.file-tile .tile-icon {
+	padding: 0.4em;
+	position: absolute;
+	right: -5px;
+	top: -5px;
+	font-size: 18px;
+	color: #fff;
+	border-radius: 50%;
+	background-color: #ff9800;
+	box-shadow: 0 0 0.5em 0 rgba(0, 0, 0, 0.4);
+	transition:
+		opacity 0.2s,
+		transform 0.2s,
+		font-size 0.2s;
+}
+
+.file-tile.file-type-image .tile-icon {
+	transform: scale(0);
+	opacity: 0;
+}
+
+.file-tile:hover .tile-icon {
+	opacity: 1;
+	transform: scale(1);
+	font-size: 22px;
 }
 
 .file-tile .file-title {
 	width: 100%;
 	margin: 0;
+	padding: 0 0.2em;
 	position: absolute;
 	bottom: 0;
 	left: 0;
 	color: #ddd;
-	background-color: rgba(20, 20, 20, 0.6);
+	background-color: rgba(0, 0, 0, 0.6);
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.file-tile.file-type-image .file-title {
+.file-tile.fs-thumb .file-title {
+	bottom: -1em;
 	opacity: 0;
-	transition: opacity 0.2s;
+	transition:
+		bottom 0.2s,
+		opacity 0.2s;
 }
 
-.file-tile.file-type-image:hover .file-title {
+.file-tile.file-type-directory .file-title,
+.file-tile:hover .file-title {
+	bottom: 0;
 	opacity: 1;
 }

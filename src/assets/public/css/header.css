@@ -1,0 +1,78 @@
+.fs-header {
+	width: 100%;
+	margin-bottom: 20px;
+	position: relative;
+	font-size: 20px;
+	color: #fff;
+	background-color: #2196f3;
+	box-shadow: 0 0 1em 0 rgba(0, 0, 0, 0.4);
+}
+
+.fs-header .fs-download {
+	font-size: 1em;
+	padding: 0.5em;
+	position: absolute;
+	right: 40px;
+	bottom: -1em;
+	color: #fff;
+	border-radius: 50%;
+	background-color: #ff9800;
+	box-shadow: 0 0 1em 0 rgba(0, 0, 0, 0.4);
+	transition: transform 0.2s;
+}
+
+.fs-header .fs-download:hover {
+	transform: scale(1.1);
+}
+
+.fs-pathbar {
+	margin: 0;
+	padding: 0;
+	overflow-x: auto;
+	list-style-type: none;
+	padding-left: 0.5em;
+}
+
+.fs-pathbar > .pathbar-segment {
+	float: left;
+	cursor: pointer;
+	background-color: #1976d2;
+}
+
+.fs-pathbar > .pathbar-segment:before,
+.fs-pathbar > .pathbar-segment:after {
+	content: "";
+	width: 0;
+	height: 0;
+	border-top: 0.75em solid transparent;
+	border-bottom: 0.75em solid transparent;
+	border-left: 0.75em solid #1976d2;
+	background-color: #2196f3;
+}
+
+.fs-pathbar > .pathbar-segment:before {
+	margin-right: 0.2em;
+	float: left;
+	border-left-color: #2196f3;
+	background-color: #1976d2;
+}
+
+.fs-pathbar > .pathbar-segment:after {
+	float: right;
+	border-left-color: #1976d2;
+	background-color: #2196f3;
+}
+
+.fs-pathbar > .pathbar-segment.active {
+	background-color: #ff9800;
+}
+
+.fs-pathbar > .pathbar-segment.active:before {
+	border-left-color: #2196f3;
+	background-color: #ff9800;
+}
+
+.fs-pathbar > .pathbar-segment.active:after {
+	border-left-color: #ff9800;
+	background-color: #2196f3;
+}

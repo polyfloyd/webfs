@@ -37,7 +37,11 @@
 </head>
 <body>
 	<div class="fs-header">
-		<a class="fs-download" target="_blank" href="{{ .urlroot }}/download/{{ .fs.Name }}/{{ .path }}.zip">Download</a>
+		<a
+			class="fs-download fa fa-cloud-download"
+			target="_blank"
+			href="{{ .urlroot }}/download/{{ .fs.Name }}/{{ .path }}.zip"
+			title="Download this folder"></a>
 	</div>
 
 	<div class="fs-tilelist-container container"></div>

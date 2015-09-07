@@ -7,6 +7,7 @@ var FileTileView = Backbone.View.extend({
 		this.files = args.files;
 		this.setElement(this.template({
 			files:   this.files,
+			icons:   this.icons,
 			fs:      args.fs,
 			urlroot: URLROOT,
 		}));
@@ -18,19 +19,27 @@ var FileTileView = Backbone.View.extend({
 		});
 	},
 
+	icons: {
+		directory: 'fa fa-folder',
+		image:     'fa fa-picture-o',
+		video:     'fa fa-video-camera',
+	},
+
 	template: _.template(
 		'<ul class="file-tilelist">'+
 			'<% files.forEach(function(file, index) { %>'+
 				'<li '+
-					'class="file-tile file-type-<%- file.type %> col-xs-1"'+
+					'class="file-tile file-type-<%- file.type %> <%= file.hasThumb ? \'fs-thumb\' : \'\' %>" '+
 					'data-index="<%= index %>">'+
+					'<div class="tile-icon <%= icons[file.type] %>"></div>'+
 					'<div '+
-						'class="tile-background <%= file.hasThumb ? \'fs-thumb\' : \'\' %>"'+
+						'class="tile-background"'+
 						'title="<%- name %>"'+
 						'style="<% if (file.hasThumb) { %>'+
 							'background-image: url(\'<%= urlroot %>/thumb/<%= fs %>/<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>.jpg\')'+
-						'<% } %>"></div>'+
-					'<p class="file-title"><%- file.name %></p>'+
+						'<% } %>">'+
+							'<p class="file-title"><%- file.name %></p>'+
+						'</div>'+
 				'</li>'+
 			'<% }) %>'+
 		'</ul>'
