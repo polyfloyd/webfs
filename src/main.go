@@ -263,7 +263,6 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		reqPath := path.Join("/", mux.Vars(req)["path"])
-		log.Println(reqPath)
 		file, err := webfs.Find(reqPath)
 		if err != nil {
 			panic(err)
