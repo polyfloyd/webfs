@@ -14,8 +14,9 @@ var FileTileView = Backbone.View.extend({
 
 		this.$('li').on('click', function(event) {
 			event.preventDefault();
-			var index = parseInt($(this).attr('data-index'), 10);
-			self.trigger('select', self.files[index], index, self.files);
+			var $self = $(this);
+			var index = parseInt($self.attr('data-index'), 10);
+			self.trigger('select', self.files[index], index, self.files, $self);
 		});
 	},
 
