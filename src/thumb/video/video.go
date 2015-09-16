@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"log"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -49,7 +50,12 @@ var acceptMimes = []string{
 }
 
 func init() {
-	thumb.RegisterThumber(VideoThumber{})
+	th := VideoThumber{}
+	if err := th.supported(); err != nil {
+		log.Println("Disabling VideoThumber:", err)
+	} else {
+		thumb.RegisterThumber(th)
+	}
 }
 
 func ffmpegDuration(dur time.Duration) string {
@@ -65,25 +71,6 @@ type VideoThumber struct{}
 
 func (VideoThumber) Accepts(file *fs.File) bool {
 	return thumb.AcceptMimes(file, acceptMimes...)
-}
-
-func (VideoThumber) videoDuration(file *fs.File) (time.Duration, error) {
-	cmd := exec.Command("ffprobe",
-		"-select_streams", "v:0",
-		"-show_entries", "stream=duration",
-		"-of", "default=noprint_wrappers=1:nokey=1",
-		file.RealPath(),
-	)
-
-	out, err := cmd.Output()
-	if err != nil {
-		return 0, err
-	}
-	f, err := strconv.ParseFloat(strings.Trim(string(out), "\n"), 64)
-	if err != nil {
-		return 0, err
-	}
-	return time.Duration(float64(time.Second) * f), nil
 }
 
 func (vt VideoThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
@@ -118,4 +105,28 @@ func (vt VideoThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	}
 
 	return image, nil
+}
+
+func (VideoThumber) videoDuration(file *fs.File) (time.Duration, error) {
+	cmd := exec.Command("ffprobe",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		file.RealPath(),
+	)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+	f, err := strconv.ParseFloat(strings.Trim(string(out), "\n"), 64)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(float64(time.Second) * f), nil
+}
+
+func (VideoThumber) supported() error {
+	_, err := exec.LookPath("ffmpeg")
+	return err
 }
