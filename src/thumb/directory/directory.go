@@ -47,18 +47,18 @@ func (th DirectoryThumber) MosaicThumb(file *fs.File, w, h int) (image.Image, er
 		return nil, err
 	}
 
-	thumbableFiles := []fs.File{}
+	thumbableFiles := make([]fs.File, 50)[0:0]
 	for _, file := range children {
-		// Yes, this is probably slow as shit, but it's fine for now.
-		if len(thumbableFiles) > 50 {
-			break // That's quite enough.
-		}
 		if thumb.FindThumber(&file) != nil {
 			thumbableFiles = append(thumbableFiles, file)
 		}
+		if len(thumbableFiles) == cap(thumbableFiles) {
+			break
+		}
 	}
+
 	if len(thumbableFiles) == 0 {
-		return nil, fmt.Errorf("No files to create a directory thumbnail")
+		return nil, fmt.Errorf("No files to create a directory thumbnail.")
 	}
 
 	var nCellsX int
@@ -81,22 +81,19 @@ func (th DirectoryThumber) MosaicThumb(file *fs.File, w, h int) (image.Image, er
 		Max: image.Point{w, h},
 	})
 
-	retry := false
 	for x := 0; x < nCellsX; x++ {
-		for y := 0; y < nCellsY || retry; y++ {
-			retry = false
-
+		for y := 0; y < nCellsY; y++ {
+			if len(thumbableFiles) == 0 {
+				return nil, fmt.Errorf("All files exhausted while trying to create a directory thumbnail.")
+			}
 			n := rand.Intn(len(thumbableFiles))
 			cellFile := &thumbableFiles[n]
 			thumbableFiles = append(thumbableFiles[:n], thumbableFiles[n+1:]...)
-			if len(thumbableFiles) == 0 {
-				return nil, fmt.Errorf("No files to create a directory thumbnail")
-			}
 
 			cell, err := thumb.FindThumber(cellFile).Thumb(cellFile, cellW, cellH)
 			if err != nil {
-				log.Println(err)
-				retry = true // Retry
+				log.Println("Error while drawing cell:", err)
+				y-- // Retry
 				continue
 			}
 
