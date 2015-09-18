@@ -38,7 +38,7 @@ var PathBar = Backbone.View.extend({
 			'data-path="/">'+
 			'<%- fs %>'+
 		'</li>'+
-		'<% names.forEach(function(name, index, paths) { %>'+
+		'<% names.forEach(function(name, index) { %>'+
 			'<li '+
 				'class="pathbar-segment <%= index === paths.length-1 ? \'active\' : \'\' %>" '+
 				'data-path="<%- paths[index] %>">'+
