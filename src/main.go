@@ -3,11 +3,11 @@ package main
 import (
 	assets "./assets-go"
 	"./fs"
+	"./fs/filecache"
+	"./fs/memcache"
 	"./thumb"
 	_ "./thumb/directory"
-	"./thumb/filecache"
 	_ "./thumb/image"
-	"./thumb/memcache"
 	_ "./thumb/video"
 	"bytes"
 	"encoding/json"

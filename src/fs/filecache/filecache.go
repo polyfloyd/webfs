@@ -1,8 +1,7 @@
 package filecache
 
 import (
-	thumb ".."
-	"../../fs"
+	fs ".."
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -57,8 +56,8 @@ func NewCache(dir string, perm os.FileMode) (*ThumbFileCache, error) {
 	return cache, nil
 }
 
-func (cache *ThumbFileCache) Get(file *fs.File, w, h int) (thumb.ReadSeekCloser, time.Time, error) {
-	cacheFile := cache.filename(file, w, h)
+func (cache *ThumbFileCache) Get(file *fs.File, instance string) (fs.ReadSeekCloser, time.Time, error) {
+	cacheFile := cache.filename(file, instance)
 
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
@@ -86,8 +85,8 @@ func (cache *ThumbFileCache) Get(file *fs.File, w, h int) (thumb.ReadSeekCloser,
 	}, info.ModTime(), nil
 }
 
-func (cache *ThumbFileCache) Put(file *fs.File, w, h int) (io.WriteCloser, error) {
-	cacheFile := cache.filename(file, w, h)
+func (cache *ThumbFileCache) Put(file *fs.File, instance string) (io.WriteCloser, error) {
+	cacheFile := cache.filename(file, instance)
 
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
@@ -106,8 +105,8 @@ func (cache *ThumbFileCache) Put(file *fs.File, w, h int) (io.WriteCloser, error
 	}, nil
 }
 
-func (cache *ThumbFileCache) Destroy(file *fs.File, w, h int) error {
-	cacheFile := cache.filename(file, w, h)
+func (cache *ThumbFileCache) Destroy(file *fs.File, instance string) error {
+	cacheFile := cache.filename(file, instance)
 
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
@@ -120,8 +119,8 @@ func (cache *ThumbFileCache) Destroy(file *fs.File, w, h int) error {
 	return os.Remove(cacheFile)
 }
 
-func (cache *ThumbFileCache) filename(file *fs.File, w, h int) string {
-	return path.Join(cache.dir, fmt.Sprintf("%x-%vx%v", sha1.Sum([]byte(file.Path)), w, h))
+func (cache *ThumbFileCache) filename(file *fs.File, instance string) string {
+	return path.Join(cache.dir, fmt.Sprintf("%x-%v", sha1.Sum([]byte(file.Path)), instance))
 }
 
 type fileReleaser struct {
