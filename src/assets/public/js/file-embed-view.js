@@ -18,35 +18,49 @@ var FileEmbedView = Backbone.View.extend({
 		this.$('.do-next').on('click', function() {
 			self.seek(1);
 		});
+		this.$('.embed-bg, .embed-container').on('click', function(event) {
+			if (!$(event.target).hasClass('embed-media')) {
+				self.close();
+			}
+		});
 	},
 
 	renderCurrentFile: function() {
 		var self = this;
 
-		var file = this.files[this.index];
-		var view = this.fileViewTemplates[file.type];
-		if (!view) {
-			view = function() { return ''; };
-		}
+		this.$('.embed-content').addClass('fade-out');
 
-		this.$('.embed-container').html(this.contentTemplate({
-			file:     file,
-			fileView: view({
-				urlroot: URLROOT,
-				file:    file,
-				fs:      this.fs,
-			}),
-		}));
-		this.$('.embed-content .embed-media').on('load canplay', function() {
-			self.resizeContent();
-		});
-		this.$('.embed-content .embed-close').on('click', function() {
-			self.close();
-		});
+		setTimeout(function() {
+			var file = self.files[self.index];
+			var view = self.fileViewTemplates[file.type];
+			if (!view) {
+				view = function() { return ''; };
+			}
+
+			self.$('.embed-container').html(self.contentTemplate({
+				file:     file,
+				fileView: view({
+					urlroot: URLROOT,
+					file:    file,
+					fs:      self.fs,
+				}),
+			}));
+			self.$('.embed-content .embed-media').on('load canplay', function() {
+				self.once('content-resize', function() {
+					self.$('.embed-content').removeClass('fade-out');
+				});
+				self.resizeContent();
+			});
+			self.$('.embed-content .embed-close').on('click', function() {
+				self.close();
+			});
+
+			self.$('.do-prev').toggleClass('disabled', self.index === 0);
+			self.$('.do-next').toggleClass('disabled', self.index === self.files.length - 1);
+		}, 200);
 	},
 
 	resizeContent: function() {
-		console.log('resize')
 		var $content = this.$('.embed-content');
 		$content.css({
 			width:  null,
@@ -72,7 +86,7 @@ var FileEmbedView = Backbone.View.extend({
 				width:  (ratio * contentSize.x)+'px',
 				height: (ratio * contentSize.y)+'px',
 			});
-			$content.removeClass('loading');
+			self.trigger('content-resize');
 		}, this);
 	},
 
@@ -111,7 +125,7 @@ var FileEmbedView = Backbone.View.extend({
 		'</div>'
 	),
 	contentTemplate: _.template(
-		'<div class="embed-content loading file-type-<%- file.type %>">'+
+		'<div class="embed-content fade-out file-type-<%- file.type %>">'+
 			'<a class="embed-close fa fa-close" title="Close"></a>'+
 			'<%= fileView %>'+
 			'<p class="embed-title"><%- file.name %></p>'+
