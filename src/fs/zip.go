@@ -3,6 +3,8 @@ package fs
 import (
 	"archive/zip"
 	"io"
+	"path"
+	"strings"
 )
 
 func ZipTree(file *File, wr io.Writer) error {
@@ -43,10 +45,10 @@ func ZipTreeFilter(file *File, filter func(file *File) (bool, error), wr io.Writ
 	}
 
 	addFiles(file)
-	return ZipFiles(files, wr)
+	return ZipFiles(files, path.Dir(file.Path), wr)
 }
 
-func ZipFiles(files []File, wr io.Writer) error {
+func ZipFiles(files []File, stripPrefix string, wr io.Writer) error {
 	zipper := zip.NewWriter(wr)
 
 	for _, file := range files {
@@ -54,12 +56,8 @@ func ZipFiles(files []File, wr io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if file.Path[0] == '/' {
-			header.Name = file.Path[1:]
-		} else {
-			header.Name = file.Path
-		}
 
+		header.Name = strings.TrimPrefix(strings.TrimPrefix(file.Path, stripPrefix), "/")
 		entry, err := zipper.CreateHeader(header)
 		if err != nil {
 			return err
