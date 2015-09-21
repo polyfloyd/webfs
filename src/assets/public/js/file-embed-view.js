@@ -38,7 +38,9 @@ var FileEmbedView = Backbone.View.extend({
 			}
 
 			self.$('.embed-container').html(self.contentTemplate({
+				urlroot:  URLROOT,
 				file:     file,
+				fs:       self.fs,
 				fileView: view({
 					urlroot: URLROOT,
 					file:    file,
@@ -126,7 +128,11 @@ var FileEmbedView = Backbone.View.extend({
 	),
 	contentTemplate: _.template(
 		'<div class="embed-content fade-out file-type-<%- file.type %>">'+
-			'<a class="embed-close fa fa-close" title="Close"></a>'+
+			'<a class="embed-actionbutton embed-close fa fa-close" title="Close"></a>'+
+			'<a class="embed-actionbutton embed-download fa fa-external-link"'+
+				'href="<%= urlroot %>/view/<%= fs %>/<%- file.path %>"'+
+				'target="_blank"'+
+				'title="Open / Download / Expand"></a>'+
 			'<%= fileView %>'+
 			'<p class="embed-title"><%- file.name %></p>'+
 		'</div>'

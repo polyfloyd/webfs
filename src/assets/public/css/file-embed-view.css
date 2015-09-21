@@ -66,13 +66,12 @@
 	opacity: 0;
 }
 
-.embed-content .embed-close {
+.embed-content .embed-actionbutton {
 	width: 48px;
 	height: 48px;
 	padding: 0.5em;
 	font-size: 24px;
 	position: absolute;
-	top: -1em;
 	right: -1em;
 	text-align: center;
 	color: #fff;
@@ -83,8 +82,16 @@
 	transition: transform 0.2s;
 }
 
-.embed-content .embed-close:hover {
+.embed-content .embed-actionbutton:hover {
 	transform: scale(1.1);
+}
+
+.embed-content .embed-close {
+	top: -1em;
+}
+
+.embed-content .embed-download {
+	top: 2em;
 }
 
 .embed-content .embed-media {
