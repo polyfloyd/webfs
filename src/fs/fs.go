@@ -48,7 +48,7 @@ func (file File) Parent() *File {
 
 // Gets the directory contents of the file, or nil if the file is not a
 // directory.
-func (file File) Children() (map[string]File, error) {
+func (file File) Children() (map[string]*File, error) {
 	if !file.Info.IsDir() {
 		return nil, nil
 	}
@@ -59,14 +59,14 @@ func (file File) Children() (map[string]File, error) {
 	}
 	defer fd.Close()
 
-	index := map[string]File{}
+	index := map[string]*File{}
 	children, err := fd.Readdir(-1)
 	if err != nil {
 		return index, nil
 	}
 
 	for _, child := range children {
-		index[child.Name()] = File{
+		index[child.Name()] = &File{
 			Info: child,
 			Path: path.Join(file.Path, child.Name()),
 			fs:   file.fs,
@@ -118,7 +118,7 @@ func (fs *Filesystem) Find(p string) (*File, error) {
 		}
 
 		if newNode, ok := children[f]; ok {
-			currentNode = &newNode
+			currentNode = newNode
 		} else {
 			return nil, nil
 		}

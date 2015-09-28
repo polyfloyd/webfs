@@ -34,7 +34,7 @@ func (DirectoryThumber) IconThumb(file *fs.File, w, h int) (image.Image, error) 
 	}
 	for _, iconName := range iconNames {
 		if icon, ok := children[iconName]; ok {
-			return imageth.ImageThumber{}.Thumb(&icon, w, h)
+			return imageth.ImageThumber{}.Thumb(icon, w, h)
 		}
 	}
 
@@ -47,9 +47,9 @@ func (th DirectoryThumber) MosaicThumb(file *fs.File, w, h int) (image.Image, er
 		return nil, err
 	}
 
-	thumbableFiles := make([]fs.File, 50)[0:0]
+	thumbableFiles := make([]*fs.File, 50)[0:0]
 	for _, file := range children {
-		if thumb.FindThumber(&file) != nil {
+		if thumb.FindThumber(file) != nil {
 			thumbableFiles = append(thumbableFiles, file)
 		}
 		if len(thumbableFiles) == cap(thumbableFiles) {
@@ -87,7 +87,7 @@ func (th DirectoryThumber) MosaicThumb(file *fs.File, w, h int) (image.Image, er
 				return nil, fmt.Errorf("All files exhausted while trying to create a directory thumbnail.")
 			}
 			n := rand.Intn(len(thumbableFiles))
-			cellFile := &thumbableFiles[n]
+			cellFile := thumbableFiles[n]
 			thumbableFiles = append(thumbableFiles[:n], thumbableFiles[n+1:]...)
 
 			cell, err := thumb.FindThumber(cellFile).Thumb(cellFile, cellW, cellH)

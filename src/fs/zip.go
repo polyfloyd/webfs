@@ -37,7 +37,7 @@ func ZipTreeFilter(file *File, filter func(file *File) (bool, error), wr io.Writ
 		}
 
 		for _, child := range children {
-			if err := addFiles(&child); err != nil {
+			if err := addFiles(child); err != nil {
 				return nil
 			}
 		}

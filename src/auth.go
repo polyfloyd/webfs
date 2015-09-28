@@ -21,7 +21,7 @@ func findAuthFile(file *fs.File) (*fs.File, error) {
 	}
 
 	if children == nil {
-		children = map[string]fs.File{}
+		children = map[string]*fs.File{}
 	}
 	passwd, ok := children[".passwd.txt"]
 	if !ok {
@@ -32,7 +32,7 @@ func findAuthFile(file *fs.File) (*fs.File, error) {
 		return findAuthFile(parent)
 	}
 
-	return &passwd, nil
+	return passwd, nil
 }
 
 // Check if a file needs authentication to view.
