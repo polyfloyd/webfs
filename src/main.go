@@ -22,12 +22,18 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	PUBLIC   = "public"
 	CONFFILE = "config.json"
+)
+
+const (
+	THUMB_WIDTH  = 140
+	THUMB_HEIGHT = 140
 )
 
 var (
@@ -84,6 +90,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	configFile := flag.String("conf", CONFFILE, "Path to the configuration file")
+	preGenThumbs := flag.Bool("pregenthumbs", false, "Generate thumbnails for every file in all configured filesystems")
 	flag.Parse()
 
 	config, err := LoadConfig(*configFile)
@@ -127,6 +134,10 @@ func main() {
 		r.Path("/download/" + fsConf.Name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
 	}
 
+	if *preGenThumbs {
+		go pregenerateThumbnails(filesystems)
+	}
+
 	log.Printf("Now accepting HTTP connections on %v", config.Address)
 	server := &http.Server{
 		Addr:           config.Address,
@@ -136,6 +147,56 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 	}
 	log.Fatal(server.ListenAndServe())
+}
+
+func pregenerateThumbnails(filesystems map[string]*fs.Filesystem) {
+	numRunners := runtime.NumCPU() / 2
+	if numRunners <= 0 {
+		numRunners = 1
+	}
+	log.Printf("Generating thumbnails using %v workers", numRunners)
+
+	fileStream := make(chan *fs.File)
+	finished := make(chan bool)
+	defer close(fileStream)
+	defer close(finished)
+
+	go func() {
+		for _, fs := range filesystems {
+			files, err := fs.Tree("/")
+			if err != nil {
+				log.Printf("Unable to generate thumbs for FS %v: %v", fs.Name, err)
+			}
+			log.Printf("Generating %v thumbs for %v", len(files), fs.Name)
+			for _, file := range files {
+				fileStream <- file
+			}
+		}
+		for i := 0; i < numRunners; i++ {
+			finished <- true
+		}
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(numRunners)
+	for i := 0; i < numRunners; i++ {
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case file := <-fileStream:
+					if thumb, _, err := thumb.ThumbFile(file, THUMB_WIDTH, THUMB_HEIGHT); err != nil {
+						log.Println(err)
+					} else if thumb != nil {
+						thumb.Close()
+					}
+				case <-finished:
+					break
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req *http.Request) {
@@ -253,10 +314,7 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 		// Not a whole lot of info can be leaked in 140x140 images. Especially
 		// with the program's current usage.
 
-		const width = 140
-		const height = 140
-
-		cachedThumb, modTime, err := thumb.ThumbFile(file, width, height)
+		cachedThumb, modTime, err := thumb.ThumbFile(file, THUMB_WIDTH, THUMB_HEIGHT)
 		if err != nil {
 			log.Println(err)
 			http.NotFound(w, req)

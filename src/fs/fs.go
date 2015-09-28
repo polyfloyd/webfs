@@ -126,3 +126,34 @@ func (fs *Filesystem) Find(p string) (*File, error) {
 
 	return currentNode, nil
 }
+
+func (fs *Filesystem) Tree(p string) ([]*File, error) {
+	root, err := fs.Find(p)
+	if err != nil {
+		return nil, err
+	}
+
+	files := make([]*File, 0)
+
+	var iterChildren func(*File) error
+	iterChildren = func(file *File) error {
+		children, err := file.Children()
+		if err != nil {
+			return err
+		}
+		for _, child := range children {
+			files = append(files, child)
+			if child.Info.IsDir() {
+				if err := iterChildren(child); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	if err := iterChildren(root); err != nil {
+		return nil, err
+	}
+	return files, nil
+}
