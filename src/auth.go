@@ -11,6 +11,31 @@ import (
 
 var passwdMatcher = regexp.MustCompile("(?m)^([^\\s]+)\\s([^\\s]+)$")
 
+type Authenticator interface {
+	// Check if a file needs authentication to view.
+	// Returns true if it's safe to transfer the protected resource to the client.
+	//
+	// The password file that is looked for is simply called .passwd.txt and
+	// contains a list of possible username/password pairs separated by newlines.
+	// The username and password are separated by whitespace. Neither the username
+	// or password may therefore contain whitespace.
+	IsAuthenticated(file *fs.File, req *http.Request) (bool, error)
+
+	Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) bool
+}
+
+type NilAuthenticator struct{}
+
+func (NilAuthenticator) Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) bool {
+	return true
+}
+
+func (NilAuthenticator) IsAuthenticated(file *fs.File, req *http.Request) (bool, error) {
+	return true, nil
+}
+
+type BasicAuthenticator struct{}
+
 // Finds the password file by recursively looking in the parent directories of
 // the specified file until the root of the virtual filesystem is reached. If
 // no password file exists, nil is returned.
@@ -35,14 +60,7 @@ func findAuthFile(file *fs.File) (*fs.File, error) {
 	return passwd, nil
 }
 
-// Check if a file needs authentication to view.
-// Returns true if it's safe to transfer the protected resource to the client.
-//
-// The password file that is looked for is simply called .passwd.txt and
-// contains a list of possible username/password pairs separated by newlines.
-// The username and password are separated by whitespace. Neither the username
-// or password may therefore contain whitespace.
-func IsAuthenticated(file *fs.File, req *http.Request) (bool, error) {
+func (BasicAuthenticator) IsAuthenticated(file *fs.File, req *http.Request) (bool, error) {
 	if file.Path == "" || file.Path == "/" {
 		return true, nil
 	}
@@ -81,8 +99,8 @@ func IsAuthenticated(file *fs.File, req *http.Request) (bool, error) {
 	return false, nil
 }
 
-func Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) bool {
-	authenticated, err := IsAuthenticated(file, req)
+func (auth BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) bool {
+	authenticated, err := auth.IsAuthenticated(file, req)
 	if err != nil {
 		log.Println(err)
 	}

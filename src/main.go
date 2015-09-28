@@ -42,8 +42,9 @@ var (
 )
 
 var (
-	startTime    = time.Now()
-	pageTemlates = map[string]*template.Template{}
+	startTime     = time.Now()
+	pageTemlates  = map[string]*template.Template{}
+	authenticator Authenticator
 )
 
 type Config struct {
@@ -91,6 +92,12 @@ func main() {
 
 	configFile := flag.String("conf", CONFFILE, "Path to the configuration file")
 	preGenThumbs := flag.Bool("pregenthumbs", false, "Generate thumbnails for every file in all configured filesystems")
+	var noPasswd *bool
+	if BUILD == "debug" {
+		noPasswd = flag.Bool("nopasswd", false, "Globally disable passord protection (debug builds only)")
+	} else {
+		noPasswd = new(bool)
+	}
 	flag.Parse()
 
 	config, err := LoadConfig(*configFile)
@@ -106,6 +113,13 @@ func main() {
 		thumb.SetCache(cache)
 	} else {
 		thumb.SetCache(memcache.NewCache())
+	}
+
+	if *noPasswd {
+		authenticator = NilAuthenticator{}
+		log.Println("Password authentication disabled")
+	} else {
+		authenticator = BasicAuthenticator{}
 	}
 
 	r := mux.NewRouter()
@@ -233,7 +247,7 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 			return
 		}
 
-		if !Authenticate(file, w, req) {
+		if !authenticator.Authenticate(file, w, req) {
 			return
 		}
 
@@ -354,7 +368,7 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 			// TODO: Currently, if subdirectories require authentication, they
 			// are completely culled from the archive. It would be nice to
 			// somehow include them.
-			authenticated, _ := IsAuthenticated(file, req)
+			authenticated, _ := authenticator.IsAuthenticated(file, req)
 			// Errors arising from IsAuthenticated() are ignored.
 			return authenticated, nil
 		}
