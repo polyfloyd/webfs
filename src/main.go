@@ -11,6 +11,7 @@ import (
 	_ "./thumb/video"
 	"bytes"
 	"encoding/json"
+	"flag"
 	"github.com/gorilla/mux"
 	"html/template"
 	"log"
@@ -55,6 +56,16 @@ type Config struct {
 	} `json:"fs"`
 }
 
+func LoadConfig(filename string) (*Config, error) {
+	config := &Config{}
+	if in, err := os.Open(filename); err != nil {
+		return nil, err
+	} else if err := json.NewDecoder(in).Decode(&config); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 type AssetServeHandler struct {
 	name string
 }
@@ -72,10 +83,11 @@ func main() {
 	log.Printf("Version: %v (%v)\n", VERSION, BUILD)
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	config := Config{}
-	if in, err := os.Open(CONFFILE); err != nil {
-		log.Fatal(err)
-	} else if err := json.NewDecoder(in).Decode(&config); err != nil {
+	configFile := flag.String("conf", CONFFILE, "Path to the configuration file")
+	flag.Parse()
+
+	config, err := LoadConfig(*configFile)
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -110,7 +122,7 @@ func main() {
 		}
 		filesystems[fsConf.Name] = webfs
 
-		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs, &config))
+		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs, config))
 		r.Path("/thumb/" + fsConf.Name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs))
 		r.Path("/download/" + fsConf.Name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
 	}
