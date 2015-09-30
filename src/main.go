@@ -13,7 +13,12 @@ import (
 	"encoding/json"
 	"flag"
 	"github.com/gorilla/mux"
+	"github.com/nfnt/resize"
 	"html/template"
+	"image"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"log"
 	"mime"
 	"net/http"
@@ -272,7 +277,24 @@ func htFsView(webfs *fs.Filesystem) func(http.ResponseWriter, *http.Request) {
 			}
 
 			if !file.Info.IsDir() {
-				http.ServeFile(res, req, file.RealPath())
+				if thumb.AcceptMimes(file, "image/jpeg", "image/png") {
+					// Scale down the image to reduce transfer time to the client.
+					fd, err := file.Open()
+					if err != nil {
+						panic(err)
+					}
+					defer fd.Close()
+
+					img, _, err := image.Decode(fd)
+					if err != nil {
+						panic(err)
+					}
+					res.Header().Set("Content-Type", "image/jpeg")
+					jpeg.Encode(res, resize.Thumbnail(1366, 768, img, resize.NearestNeighbor), nil)
+
+				} else {
+					http.ServeFile(res, req, file.RealPath())
+				}
 				return
 			}
 
