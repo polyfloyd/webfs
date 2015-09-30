@@ -107,7 +107,7 @@ func (auth BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWrit
 	if !authenticated {
 		time.Sleep(time.Millisecond * 200) // Mitigate brute force attack.
 		res.Header().Set("WWW-Authenticate", "Basic realm=\"You need a username and password to view these files\"")
-		http.Error(res, "Unauthorized", http.StatusUnauthorized)
+		res.WriteHeader(http.StatusUnauthorized)
 	}
 	return authenticated
 }

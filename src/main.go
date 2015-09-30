@@ -41,10 +41,13 @@ var (
 	VERSION = strings.Trim(string(assets.MustAsset("_VERSION")), "\n ")
 )
 
+// Global vars are bad, but these are not supposed to be changed.
 var (
 	startTime     = time.Now()
 	pageTemlates  = map[string]*template.Template{}
 	authenticator Authenticator
+	config        *Config
+	staticAssets  map[string][]string
 )
 
 type Config struct {
@@ -100,10 +103,13 @@ func main() {
 	}
 	flag.Parse()
 
-	config, err := LoadConfig(*configFile)
+	var err error
+	config, err = LoadConfig(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	staticAssets = genStaticAssets()
 
 	if config.Cache != nil {
 		cache, err := filecache.NewCache(path.Join(*config.Cache, "thumbs"), 0)
@@ -143,7 +149,7 @@ func main() {
 		}
 		filesystems[fsConf.Name] = webfs
 
-		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs, config))
+		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs))
 		r.Path("/thumb/" + fsConf.Name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs))
 		r.Path("/download/" + fsConf.Name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
 	}
@@ -213,7 +219,22 @@ func pregenerateThumbnails(filesystems map[string]*fs.Filesystem) {
 	wg.Wait()
 }
 
-func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req *http.Request) {
+func baseTeplateArgs() map[string]interface{} {
+	return map[string]interface{}{
+		"build":   BUILD,
+		"version": VERSION,
+
+		"urlroot": config.URLRoot,
+		"assets":  staticAssets,
+		"time":    time.Now(),
+
+		"piwik":       config.Piwik,
+		"piwikRoot":   config.PiwikRoot,
+		"piwikSiteID": config.PiwikSiteID,
+	}
+}
+
+func genStaticAssets() map[string][]string {
 	static := map[string][]string{
 		"js":  []string{},
 		"css": []string{},
@@ -234,33 +255,33 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 	for _, a := range static {
 		sort.Strings(a)
 	}
+	return static
+}
 
-	return func(w http.ResponseWriter, req *http.Request) {
-		reqPath := path.Join("/", mux.Vars(req)["path"])
-		file, err := fs.Find(reqPath)
-		if err != nil {
-			panic(err)
-		}
+func htFsView(webfs *fs.Filesystem) func(http.ResponseWriter, *http.Request) {
+	return func(res http.ResponseWriter, req *http.Request) {
+		var renderFile func(*fs.File)
+		renderFile = func(file *fs.File) {
+			if auth := authenticator.Authenticate(file, res, req); !auth {
+				if parent := file.Parent(); parent != nil {
+					renderFile(parent)
+				} else {
+					res.Write([]byte("Unauthorized"))
+				}
+				return
+			}
 
-		if file == nil || file.IsDotfile() {
-			http.NotFound(w, req)
-			return
-		}
+			if !file.Info.IsDir() {
+				http.ServeFile(res, req, file.RealPath())
+				return
+			}
 
-		if !authenticator.Authenticate(file, w, req) {
-			return
-		}
+			children, err := file.Children()
+			if err != nil {
+				panic(err)
+			}
 
-		children, err := file.Children()
-		if err != nil {
-			panic(err)
-		}
-
-		if children == nil {
-			http.ServeFile(w, req, file.RealPath())
-
-		} else {
-			files := []map[string]interface{}{}
+			files := make([]map[string]interface{}, len(children))[0:0]
 			for name, child := range children {
 				if child.IsDotfile() {
 					continue // Hide dotfiles
@@ -287,26 +308,25 @@ func htFsView(fs *fs.Filesystem, config *Config) func(w http.ResponseWriter, req
 				})
 			}
 
-			err := getPageTemplate("main.html").Execute(w, map[string]interface{}{
-				"build":   BUILD,
-				"version": VERSION,
-
-				"urlroot": config.URLRoot,
-				"assets":  static,
-				"time":    time.Now(),
-
-				"piwik":       config.Piwik,
-				"piwikRoot":   config.PiwikRoot,
-				"piwikSiteID": config.PiwikSiteID,
-
-				"fs":    fs,
-				"path":  reqPath,
-				"files": files,
-			})
-			if err != nil {
+			args := baseTeplateArgs()
+			args["fs"] = webfs
+			args["path"] = file.Path
+			args["files"] = files
+			if err := getPageTemplate("main.html").Execute(res, args); err != nil {
 				panic(err)
 			}
 		}
+
+		file, err := webfs.Find(path.Join("/", mux.Vars(req)["path"]))
+		if err != nil {
+			panic(err)
+		}
+		if file == nil || file.IsDotfile() {
+			http.NotFound(res, req)
+			return
+		}
+
+		renderFile(file)
 	}
 }
 
@@ -346,8 +366,7 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 
 func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		reqPath := path.Join("/", mux.Vars(req)["path"])
-		file, err := webfs.Find(reqPath)
+		file, err := webfs.Find(path.Join("/", mux.Vars(req)["path"]))
 		if err != nil {
 			panic(err)
 		}
