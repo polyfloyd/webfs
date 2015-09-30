@@ -33,5 +33,5 @@ func (ImageThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	}
 
 	// Preserve aspect ratio by setting height to 0
-	return resize.Resize(uint(w), 0, img, resize.NearestNeighbor), nil
+	return resize.Thumbnail(uint(w), uint(h), img, resize.NearestNeighbor), nil
 }
