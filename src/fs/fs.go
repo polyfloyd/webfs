@@ -31,8 +31,11 @@ func (file File) IsDotfile() bool {
 
 func (file File) Parent() *File {
 	parentPath := path.Dir(file.Path)
-	if parentPath == "." || parentPath == "/" {
+	if parentPath == file.Path {
 		return nil
+	}
+	if parentPath == "." || parentPath == "/" {
+		return &file.fs.Root
 	}
 
 	info, err := os.Stat(parentPath)
