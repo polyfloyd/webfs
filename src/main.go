@@ -156,6 +156,7 @@ func main() {
 
 		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs))
 		r.Path("/thumb/" + fsConf.Name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs))
+		r.Path("/get/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsGet(webfs))
 		r.Path("/download/" + fsConf.Name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
 	}
 
@@ -383,6 +384,27 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 		defer cachedThumb.Close()
 
 		http.ServeContent(w, req, file.Info.Name(), modTime, cachedThumb)
+	}
+}
+
+func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
+	return func(res http.ResponseWriter, req *http.Request) {
+		file, err := webfs.Find(path.Join("/", mux.Vars(req)["path"]))
+		if err != nil {
+			panic(err)
+		}
+
+		if file == nil || file.IsDotfile() {
+			http.NotFound(res, req)
+			return
+		}
+
+		if !authenticator.Authenticate(file, res, req) {
+			res.Write([]byte("Unauthorized"))
+			return
+		}
+
+		http.ServeFile(res, req, file.RealPath())
 	}
 }
 

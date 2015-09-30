@@ -130,7 +130,7 @@ var FileEmbedView = Backbone.View.extend({
 		'<div class="embed-content fade-out file-type-<%- file.type %>">'+
 			'<a class="embed-actionbutton embed-close fa fa-close" title="Close"></a>'+
 			'<a class="embed-actionbutton embed-download fa fa-external-link"'+
-				'href="<%= urlroot %>/view/<%= fs %>/<%- file.path %>"'+
+				'href="<%= urlroot %>/get/<%= fs %>/<%- file.path %>"'+
 				'target="_blank"'+
 				'title="Open / Download / Expand"></a>'+
 			'<%= fileView %>'+
