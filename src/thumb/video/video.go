@@ -50,12 +50,18 @@ var acceptMimes = []string{
 }
 
 func init() {
-	th := VideoThumber{}
-	if err := th.supported(); err != nil {
-		log.Println("Disabling VideoThumber:", err)
-	} else {
-		thumb.RegisterThumber(th)
+	ff := AvconvThumber{}
+	if err := ff.supported(); err == nil {
+		thumb.RegisterThumber(ff)
+		return
 	}
+	av := AvconvThumber{}
+	if err := av.supported(); err == nil {
+		thumb.RegisterThumber(av)
+		return
+	}
+
+	log.Println("Disabling video thumbers, no supported implementations")
 }
 
 func ffmpegDuration(dur time.Duration) string {
@@ -67,13 +73,13 @@ func ffmpegDuration(dur time.Duration) string {
 	)
 }
 
-type VideoThumber struct{}
+type FFmpegThumber struct{}
 
-func (VideoThumber) Accepts(file *fs.File) bool {
+func (FFmpegThumber) Accepts(file *fs.File) bool {
 	return thumb.AcceptMimes(file, acceptMimes...)
 }
 
-func (vt VideoThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
+func (vt FFmpegThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	duration, err := vt.videoDuration(file)
 	if err != nil {
 		duration = time.Second // Take a guess and hope the video is longer than this.
@@ -107,7 +113,7 @@ func (vt VideoThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	return image, nil
 }
 
-func (VideoThumber) videoDuration(file *fs.File) (time.Duration, error) {
+func (FFmpegThumber) videoDuration(file *fs.File) (time.Duration, error) {
 	cmd := exec.Command("ffprobe",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=duration",
@@ -126,7 +132,50 @@ func (VideoThumber) videoDuration(file *fs.File) (time.Duration, error) {
 	return time.Duration(float64(time.Second) * f), nil
 }
 
-func (VideoThumber) supported() error {
+func (FFmpegThumber) supported() error {
 	_, err := exec.LookPath("ffmpeg")
+	return err
+}
+
+type AvconvThumber struct{}
+
+func (AvconvThumber) Accepts(file *fs.File) bool {
+	return thumb.AcceptMimes(file, acceptMimes...)
+}
+
+func (vt AvconvThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
+	// Look, I don't want to deal with figuring out how to measure the length
+	// of a video, avconv is deprecated anyway.
+	cmd := exec.Command("avconv",
+		"-i", file.RealPath(),
+		"-vframes", "1",
+		"-r", "1",
+		"-an",
+		"-y",
+		"-f", "image2",
+		"-s", fmt.Sprintf("%dx%d", w, h),
+		"-",
+	)
+
+	o, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	image, err := jpeg.Decode(o)
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Wait(); err != nil {
+		return nil, err
+	}
+
+	return image, nil
+}
+
+func (AvconvThumber) supported() error {
+	_, err := exec.LookPath("avconv")
 	return err
 }
