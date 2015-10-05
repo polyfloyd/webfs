@@ -50,7 +50,7 @@ var acceptMimes = []string{
 }
 
 func init() {
-	ff := AvconvThumber{}
+	ff := FFmpegThumber{}
 	if err := ff.supported(); err == nil {
 		thumb.RegisterThumber(ff)
 		return
