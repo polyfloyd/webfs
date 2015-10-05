@@ -125,7 +125,11 @@ func main() {
 		authenticator = NilAuthenticator{}
 		log.Println("Password authentication disabled")
 	} else {
-		authenticator = BasicAuthenticator{}
+		auth, err := NewBasicAuthenticator(path.Join(*config.Cache, "sessions"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		authenticator = auth
 	}
 
 	r := mux.NewRouter()
@@ -263,7 +267,11 @@ func htFsView(webfs *fs.Filesystem) func(http.ResponseWriter, *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		var renderFile func(*fs.File)
 		renderFile = func(file *fs.File) {
-			if auth := authenticator.Authenticate(file, res, req); !auth {
+			auth, err := authenticator.Authenticate(file, res, req)
+			if err != nil {
+				panic(err)
+			}
+			if !auth {
 				if parent := file.Parent(); parent != nil {
 					renderFile(parent)
 				} else {
@@ -395,13 +403,21 @@ func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Reque
 			return
 		}
 
-		if !authenticator.Authenticate(file, res, req) {
+		if auth, err := authenticator.Authenticate(file, res, req); err != nil {
+			panic(err)
+		} else if !auth {
 			res.Write([]byte("Unauthorized"))
 			return
 		}
 
 		http.ServeFile(res, req, file.RealPath())
 	}
+}
+
+type abortZipper struct{}
+
+func (abortZipper) Error() string {
+	return "abort zipper"
 }
 
 func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
@@ -424,14 +440,16 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 			}
 
 			// TODO: Slow as shit, will fix later.
-			// TODO: Currently, if subdirectories require authentication, they
-			// are completely culled from the archive. It would be nice to
-			// somehow include them.
-			authenticated, _ := authenticator.IsAuthenticated(file, req)
-			// Errors arising from IsAuthenticated() are ignored.
+			authenticated, _ := authenticator.Authenticate(file, res, req)
+			if !authenticated {
+				return false, abortZipper{}
+			}
 			return authenticated, nil
 		}
 		if err := fs.ZipTreeFilter(file, filter, res); err != nil {
+			if _, ok := err.(abortZipper); ok {
+				return
+			}
 			panic(err)
 		}
 	}

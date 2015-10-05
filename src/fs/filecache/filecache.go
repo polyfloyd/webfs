@@ -23,13 +23,7 @@ func NewCache(dir string, perm os.FileMode) (*ThumbFileCache, error) {
 	if perm == 0 {
 		perm = 0700 | os.ModeTemporary
 	}
-	if dir[0] == '~' {
-		home := os.Getenv("HOME")
-		if home == "" {
-			return nil, fmt.Errorf("~ found in cache path, but $HOME is not set")
-		}
-		dir = path.Join(home, dir[1:])
-	}
+	dir = fs.FixHome(dir)
 
 	if err := os.MkdirAll(dir, perm); err != nil {
 		return nil, err
