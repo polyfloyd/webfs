@@ -336,9 +336,10 @@ func htFsView(webfs *fs.Filesystem) func(http.ResponseWriter, *http.Request) {
 			}
 
 			args := baseTeplateArgs()
+			args["files"] = files
 			args["fs"] = webfs
 			args["path"] = file.Path
-			args["files"] = files
+			args["title"] = path.Base(file.Path)
 			if err := getPageTemplate("main.html").Execute(res, args); err != nil {
 				panic(err)
 			}
