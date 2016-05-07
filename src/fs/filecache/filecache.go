@@ -1,7 +1,6 @@
 package filecache
 
 import (
-	fs ".."
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -9,6 +8,8 @@ import (
 	"path"
 	"sync"
 	"time"
+
+	fs ".."
 )
 
 // A cache using the filesystem as storage.

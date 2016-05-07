@@ -1,14 +1,15 @@
 package directory
 
 import (
-	thumb ".."
-	"../../fs"
-	imageth "../image"
 	"fmt"
 	"image"
 	"image/draw"
 	"log"
 	"math/rand"
+
+	thumb ".."
+	"../../fs"
+	imageth "../image"
 )
 
 func init() {

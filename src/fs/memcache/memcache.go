@@ -1,12 +1,13 @@
 package memcache
 
 import (
-	fs ".."
 	"bytes"
 	"fmt"
 	"io"
 	"sync"
 	"time"
+
+	fs ".."
 )
 
 // An implementation of a file Cache storing all its files in sytem memory.

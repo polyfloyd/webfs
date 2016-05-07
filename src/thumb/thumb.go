@@ -1,7 +1,6 @@
 package thumb
 
 import (
-	"../fs"
 	"bytes"
 	"fmt"
 	"image"
@@ -11,6 +10,8 @@ import (
 	"net/http"
 	"path"
 	"time"
+
+	"../fs"
 )
 
 var (

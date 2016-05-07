@@ -1,18 +1,9 @@
 package main
 
 import (
-	assets "./assets-go"
-	"./fs"
-	"./fs/filecache"
-	"./fs/memcache"
-	"./thumb"
-	_ "./thumb/directory"
-	_ "./thumb/image"
-	_ "./thumb/video"
 	"bytes"
 	"encoding/json"
 	"flag"
-	"github.com/gorilla/mux"
 	"html/template"
 	"log"
 	"mime"
@@ -24,6 +15,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	assets "./assets-go"
+	"./fs"
+	"./fs/filecache"
+	"./fs/memcache"
+	"./thumb"
+	_ "./thumb/directory"
+	_ "./thumb/image"
+	_ "./thumb/video"
+	"github.com/gorilla/mux"
 )
 
 const (

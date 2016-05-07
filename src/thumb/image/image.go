@@ -1,13 +1,14 @@
 package image
 
 import (
-	thumb ".."
-	"../../fs"
-	"github.com/nfnt/resize"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+
+	thumb ".."
+	"../../fs"
+	"github.com/nfnt/resize"
 )
 
 func init() {

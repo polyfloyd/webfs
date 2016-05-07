@@ -1,8 +1,6 @@
 package video
 
 import (
-	thumb ".."
-	"../../fs"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -11,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	thumb ".."
+	"../../fs"
 )
 
 var acceptMimes = []string{

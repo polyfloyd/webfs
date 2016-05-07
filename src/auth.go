@@ -1,10 +1,8 @@
 package main
 
 import (
-	"./fs"
 	"crypto/rand"
 	"fmt"
-	"github.com/gorilla/sessions"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -12,6 +10,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"./fs"
+	"github.com/gorilla/sessions"
 )
 
 var passwdMatcher = regexp.MustCompile("(?m)^([^\\s]+)\\s([^\\s]+)$")
