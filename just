@@ -33,39 +33,21 @@ EOF
 
 case ${1:-} in
 	"install")
-		GPM="$LIB/gpm"
-		if [ ! -e "$GPM" ]; then
-			echo "*** Installing Dependency Manager ***"
-			wget -qO- https://raw.githubusercontent.com/pote/gpm/v1.3.2/bin/gpm > "$GPM"
-			chmod 755 "$GPM"
-		fi
+		echo "*** Installing minifier ***"
+		GOPATH="$GOPATH" go get -u github.com/tdewolff/minify/...
 
-		if [ ! -e "$MIN_JS" ]; then
-			npm install --prefix "$LIB" "uglifyjs" "minify" "bower"
-		fi
+		echo "*** Installing go-bindata ***"
+		GOPATH="$GOPATH" go get -u github.com/jteeuwen/go-bindata/...
 
 		echo "*** Installing Dependencies ***"
-		cd "$WORKSPACE/src"
-		GOPATH="$GOPATH" "$GPM" install
-		cd "$WORKSPACE"
-
-		"$DIR_NPM/.bin/bower" install
-		rm -rf   "$ASSETS/public/00-dep"
-		mkdir -p "$ASSETS/public/00-dep/css"
-		mkdir -p "$ASSETS/public/00-dep/js"
-		mkdir -p "$ASSETS/public/00-dep/fonts"
-		ln -s "$DIR_BOWER/bootstrap/dist/css/bootstrap.css"                        "$ASSETS/public/00-dep/css/bootstrap.css"
-		ln -s "$DIR_BOWER/bootstrap/dist/css/bootstrap.css.map"                    "$ASSETS/public/00-dep/css/bootstrap.css.map"
-		ln -s "$DIR_BOWER/font-awesome/css/font-awesome.css"                       "$ASSETS/public/00-dep/css/font-awesome.css"
-		ln -s "$DIR_BOWER/jquery/dist/jquery.js"                                   "$ASSETS/public/00-dep/js/00-jquery.js"
-		ln -s "$DIR_BOWER/underscore/underscore.js"                                "$ASSETS/public/00-dep/js/01-backbone.js"
-		ln -s "$DIR_BOWER/backbone/backbone.js"                                    "$ASSETS/public/00-dep/js/10-backbone.js"
-		ln -s "$DIR_BOWER/bootstrap/dist/js/bootstrap.js"                          "$ASSETS/public/00-dep/js/bootstrap.js"
-		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.eot"              "$ASSETS/public/00-dep/fonts/fontawesome-webfont.eot"
-		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.svg"              "$ASSETS/public/00-dep/fonts/fontawesome-webfont.svg"
-		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.ttf"              "$ASSETS/public/00-dep/fonts/fontawesome-webfont.ttf"
-		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.woff"             "$ASSETS/public/00-dep/fonts/fontawesome-webfont.woff"
-		ln -s "$DIR_BOWER/font-awesome/fonts/fontawesome-webfont.woff2"            "$ASSETS/public/00-dep/fonts/fontawesome-webfont.woff2"
+		cat "$WORKSPACE/src/Godeps" | \
+		while read dep; do
+			pkg=`echo $dep | cut -f1 -d' '`
+			rev=`echo $dep | cut -f2 -d' '`
+			echo "  Installing $pkg"
+			GOPATH="$GOPATH" go get "$pkg"
+			pushd "$GOPATH/src/$pkg" > /dev/null; git checkout $rev --quiet; popd > /dev/null
+		done
 	;;
 
 	"build")

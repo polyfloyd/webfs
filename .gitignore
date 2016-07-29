@@ -1,12 +1,8 @@
-~*
 *~
 *.swp
 *.swo
 /config.json
 /bin
-/lib
-/bower_components
+/lib/gopath
 /src/assets-go
-/src/assets/_BUILD
-/src/assets/_VERSION
-/src/assets/public/00-dep
+/src/assets/_*
