@@ -389,6 +389,7 @@ func htFsThumb(fs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWrite
 		}
 		defer cachedThumb.Close()
 
+		w.Header().Set("Content-Type", "image/jpeg")
 		http.ServeContent(w, req, file.Info.Name(), modTime, cachedThumb)
 	}
 }
