@@ -23,6 +23,7 @@ import (
 	"./thumb"
 	_ "./thumb/directory"
 	_ "./thumb/image"
+	_ "./thumb/vector"
 	_ "./thumb/video"
 	"github.com/gorilla/mux"
 )
