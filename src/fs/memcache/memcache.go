@@ -29,7 +29,7 @@ func (cache *MemCache) Get(file *fs.File, instance string) (fs.ReadSeekCloser, t
 	cachedFile, ok := cache.store[cacheKey(file, instance)]
 	cache.lock.RUnlock()
 	if !ok {
-		return nil, time.Unix(0, 0), nil
+		return nil, time.Time{}, nil
 	}
 
 	// Wait if the file is being written. The lock will be released by the

@@ -26,16 +26,13 @@ func ZipTreeFilter(file *File, filter func(file *File) (bool, error), wr io.Writ
 		}
 		if !file.Info.IsDir() {
 			files = append(files, *file)
-		}
-
-		children, err := file.Children()
-		if err != nil {
-			return err
-		}
-		if children == nil {
 			return nil
 		}
 
+		children, err := file.Children()
+		if err != nil || children == nil {
+			return err
+		}
 		for _, child := range children {
 			if err := addFiles(child); err != nil {
 				return nil
@@ -44,7 +41,9 @@ func ZipTreeFilter(file *File, filter func(file *File) (bool, error), wr io.Writ
 		return nil
 	}
 
-	addFiles(file)
+	if err := addFiles(file); err != nil {
+		return err
+	}
 	return ZipFiles(files, path.Dir(file.Path), wr)
 }
 
@@ -67,9 +66,9 @@ func ZipFiles(files []File, stripPrefix string, wr io.Writer) error {
 		if err != nil {
 			return err
 		}
-		defer fd.Close()
-
-		if _, err = io.Copy(entry, fd); err != nil {
+		_, err = io.Copy(entry, fd)
+		fd.Close()
+		if err != nil {
 			return err
 		}
 	}

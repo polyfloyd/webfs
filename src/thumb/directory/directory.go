@@ -22,7 +22,14 @@ func (DirectoryThumber) Accepts(file *fs.File) bool {
 	return file.Info.IsDir()
 }
 
-func (DirectoryThumber) IconThumb(file *fs.File, w, h int) (image.Image, error) {
+func (DirectoryThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
+	if icon, err := IconThumb(file, w, h); err == nil {
+		return icon, err
+	}
+	return MosaicThumb(file, w, h)
+}
+
+func IconThumb(file *fs.File, w, h int) (image.Image, error) {
 	children, err := file.Children()
 	if err != nil {
 		return nil, err
@@ -42,7 +49,7 @@ func (DirectoryThumber) IconThumb(file *fs.File, w, h int) (image.Image, error) 
 	return nil, fmt.Errorf("Directory does not contain an icon file")
 }
 
-func (th DirectoryThumber) MosaicThumb(file *fs.File, w, h int) (image.Image, error) {
+func MosaicThumb(file *fs.File, w, h int) (image.Image, error) {
 	children, err := file.Children()
 	if err != nil {
 		return nil, err
@@ -106,11 +113,4 @@ func (th DirectoryThumber) MosaicThumb(file *fs.File, w, h int) (image.Image, er
 	}
 
 	return dst, nil
-}
-
-func (th DirectoryThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
-	if icon, err := th.IconThumb(file, w, h); err == nil {
-		return icon, err
-	}
-	return th.MosaicThumb(file, w, h)
 }

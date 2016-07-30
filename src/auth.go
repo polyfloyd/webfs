@@ -53,7 +53,7 @@ func authFileAuthenticate(authFile *fs.File, rUsername, rPassword string) (bool,
 	n, _ := fd.Read(buf[:])
 	matches := passwdMatcher.FindAllStringSubmatch(string(buf[:n]), -1)
 	if matches == nil {
-		return false, fmt.Errorf("Password file \"%v\" is not valid.", authFile.RealPath())
+		return false, fmt.Errorf("Password file %q is not valid.", authFile.RealPath())
 	}
 	for _, match := range matches {
 		if match[1] == rUsername && match[2] == rPassword {
@@ -155,5 +155,4 @@ func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWri
 
 	// The file has been authenticated by the session.
 	return true, nil
-
 }

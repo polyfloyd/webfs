@@ -86,7 +86,7 @@ type Filesystem struct {
 
 func NewFilesystem(path, name string) (*Filesystem, error) {
 	fs := &Filesystem{
-		RealPath: path,
+		RealPath: FixHome(path),
 		Name:     name,
 	}
 

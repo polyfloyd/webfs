@@ -45,7 +45,7 @@ var (
 // Global vars are bad, but these are not supposed to be changed.
 var (
 	startTime     = time.Now()
-	pageTemlates  = map[string]*template.Template{}
+	pageTemplates = map[string]*template.Template{}
 	authenticator Authenticator
 	config        *Config
 	staticAssets  map[string][]string
@@ -92,7 +92,6 @@ func (h *AssetServeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 
 func main() {
 	log.Printf("Version: %v (%v)\n", VERSION, BUILD)
-	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	configFile := flag.String("conf", CONFFILE, "Path to the configuration file")
 	preGenThumbs := flag.Bool("pregenthumbs", false, "Generate thumbnails for every file in all configured filesystems")
@@ -112,14 +111,15 @@ func main() {
 
 	staticAssets = genStaticAssets()
 
-	if config.Cache != nil {
+	var thumbCache fs.Cache
+	if config.Cache != nil && *config.Cache != "" {
 		cache, err := filecache.NewCache(path.Join(*config.Cache, "thumbs"), 0)
 		if err != nil {
 			log.Fatal(err)
 		}
-		thumb.SetCache(cache)
+		thumbCache = cache
 	} else {
-		thumb.SetCache(memcache.NewCache())
+		thumbCache = memcache.NewCache()
 	}
 
 	if *noPasswd {
@@ -146,7 +146,7 @@ func main() {
 	filesystems := map[string]*fs.Filesystem{}
 	for _, fsConf := range config.FS {
 		if _, ok := filesystems[fsConf.Name]; ok {
-			log.Fatalf("Duplicate filesystem \"%v\"", fsConf.Name)
+			log.Fatalf("Duplicate filesystem %q", fsConf.Name)
 		}
 		webfs, err := fs.NewFilesystem(fsConf.Path, fsConf.Name)
 		if err != nil {
@@ -154,14 +154,14 @@ func main() {
 		}
 		filesystems[fsConf.Name] = webfs
 
-		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs))
-		r.Path("/thumb/" + fsConf.Name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs))
+		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs, thumbCache))
+		r.Path("/thumb/" + fsConf.Name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs, thumbCache))
 		r.Path("/get/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsGet(webfs))
 		r.Path("/download/" + fsConf.Name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
 	}
 
 	if *preGenThumbs {
-		go pregenerateThumbnails(filesystems)
+		go pregenerateThumbnails(filesystems, thumbCache)
 	}
 
 	log.Printf("Now accepting HTTP connections on %v", config.Address)
@@ -175,7 +175,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func pregenerateThumbnails(filesystems map[string]*fs.Filesystem) {
+func pregenerateThumbnails(filesystems map[string]*fs.Filesystem, thumbCache fs.Cache) {
 	numRunners := runtime.NumCPU() / 2
 	if numRunners <= 0 {
 		numRunners = 1
@@ -211,7 +211,7 @@ func pregenerateThumbnails(filesystems map[string]*fs.Filesystem) {
 			for {
 				select {
 				case file := <-fileStream:
-					if thumb, _, err := thumb.ThumbFile(file, THUMB_WIDTH, THUMB_HEIGHT); err != nil {
+					if thumb, _, err := thumb.ThumbFile(thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT); err != nil {
 						log.Println(err)
 					} else if thumb != nil {
 						thumb.Close()
@@ -264,7 +264,7 @@ func genStaticAssets() map[string][]string {
 	return static
 }
 
-func htFsView(webfs *fs.Filesystem) func(http.ResponseWriter, *http.Request) {
+func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWriter, *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		var renderFile func(*fs.File)
 		renderFile = func(file *fs.File) {
@@ -285,7 +285,7 @@ func htFsView(webfs *fs.Filesystem) func(http.ResponseWriter, *http.Request) {
 				if thumb.AcceptMimes(file, "image/jpeg", "image/png") {
 					// Scale down the image to reduce transfer time to the client.
 					const WIDTH, HEIGHT = 1366, 768
-					cachedImage, modTime, err := thumb.ThumbFile(file, WIDTH, HEIGHT)
+					cachedImage, modTime, err := thumb.ThumbFile(thumbCache, file, WIDTH, HEIGHT)
 					if err != nil {
 						log.Println(err)
 						http.NotFound(res, req)
@@ -359,7 +359,7 @@ func htFsView(webfs *fs.Filesystem) func(http.ResponseWriter, *http.Request) {
 	}
 }
 
-func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request) {
+func htFsThumb(fs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		p := path.Join("/", mux.Vars(req)["path"])
 		file, err := fs.Find(p)
@@ -377,7 +377,7 @@ func htFsThumb(fs *fs.Filesystem) func(w http.ResponseWriter, req *http.Request)
 		// Not a whole lot of info can be leaked in 140x140 images. Especially
 		// with the program's current usage.
 
-		cachedThumb, modTime, err := thumb.ThumbFile(file, THUMB_WIDTH, THUMB_HEIGHT)
+		cachedThumb, modTime, err := thumb.ThumbFile(thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT)
 		if err != nil {
 			log.Println(err)
 			http.NotFound(w, req)
@@ -461,11 +461,11 @@ func getPageTemplate(name string) *template.Template {
 	if BUILD == "debug" {
 		return template.Must(template.New(name).Parse(string(assets.MustAsset(name))))
 	} else {
-		if tmpl, ok := pageTemlates[name]; ok {
+		if tmpl, ok := pageTemplates[name]; ok {
 			return tmpl
 		} else {
-			pageTemlates[name] = template.Must(template.New(name).Parse(string(assets.MustAsset(name))))
-			return pageTemlates[name]
+			pageTemplates[name] = template.Must(template.New(name).Parse(string(assets.MustAsset(name))))
+			return pageTemplates[name]
 		}
 	}
 }

@@ -22,7 +22,7 @@ type Cache interface {
 	// an error occurs, in which case nil is returned and an error is set.
 	//
 	// The returned time is the creation time of the file, always later
-	// than the modifacation time of the file.
+	// than the modifacation time of the file on disk.
 	Get(file *File, instance string) (ReadSeekCloser, time.Time, error)
 
 	// Stores a file by providing the writer the instance should be written
@@ -30,6 +30,6 @@ type Cache interface {
 	Put(file *File, instance string) (io.WriteCloser, error)
 
 	// Removes a cached file. If the instance identifier is "" all instances
-	// are removed. This function is a no-op if no file thumbnail exists.
+	// are removed. This function is a no-op if no file exists.
 	Destroy(file *File, instance string) error
 }

@@ -14,10 +14,7 @@ import (
 	"../fs"
 )
 
-var (
-	thumbers   []Thumber
-	thumbCache fs.Cache
-)
+var thumbers []Thumber
 
 type Thumber interface {
 	// Checks wether the thumber is capable of creating a thumbnail of the
@@ -72,28 +69,28 @@ func FindThumber(file *fs.File) Thumber {
 // modification time changes.
 //
 // The thumbnail is exposed as a JPEG image.
-func ThumbFile(file *fs.File, width, height int) (fs.ReadSeekCloser, time.Time, error) {
+func ThumbFile(thumbCache fs.Cache, file *fs.File, width, height int) (fs.ReadSeekCloser, time.Time, error) {
 	cachedThumb, modTime, err := thumbCache.Get(file, cacheInstance(width, height))
 	if err != nil {
-		return nil, time.Unix(0, 0), err
+		return nil, time.Time{}, err
 	}
 
 	if cachedThumb == nil || file.Info.ModTime().After(modTime) {
 		th := FindThumber(file)
 		if th == nil {
-			return nil, time.Unix(0, 0), nil
+			return nil, time.Time{}, nil
 		}
 
 		cacheWriter, err := thumbCache.Put(file, cacheInstance(width, height))
 		if err != nil {
-			return nil, time.Unix(0, 0), err
+			return nil, time.Time{}, err
 		}
 
 		img, err := th.Thumb(file, width, height)
 		if err != nil {
 			cacheWriter.Close()
 			thumbCache.Destroy(file, cacheInstance(width, height))
-			return nil, time.Unix(0, 0), err
+			return nil, time.Time{}, err
 		}
 
 		buf := &bufSeekCloser{}
@@ -117,8 +114,4 @@ type bufSeekCloser struct {
 
 func (bufSeekCloser) Close() error {
 	return nil
-}
-
-func SetCache(cache fs.Cache) {
-	thumbCache = cache
 }

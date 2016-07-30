@@ -58,20 +58,20 @@ func (cache *ThumbFileCache) Get(file *fs.File, instance string) (fs.ReadSeekClo
 	defer cache.lock.RUnlock()
 	lock, ok := cache.locks[cacheFile]
 	if !ok {
-		return nil, time.Unix(0, 0), nil
+		return nil, time.Time{}, nil
 	}
 	lock.RLock()
 
 	fd, err := os.Open(cacheFile)
 	if err != nil {
 		lock.RUnlock()
-		return nil, time.Unix(0, 0), err
+		return nil, time.Time{}, err
 	}
 
 	info, err := os.Stat(cacheFile)
 	if err != nil {
 		lock.RUnlock()
-		return nil, time.Unix(0, 0), err
+		return nil, time.Time{}, err
 	}
 
 	return fileReleaser{
