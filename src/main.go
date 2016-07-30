@@ -333,7 +333,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 							return "generic"
 						}
 					}(),
-					"hasThumb": true, // TODO
+					"hasThumb": thumb.FindThumber(child) != nil,
 				})
 			}
 
