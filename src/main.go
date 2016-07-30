@@ -78,17 +78,15 @@ func LoadConfig(filename string) (*Config, error) {
 	return config, nil
 }
 
-type AssetServeHandler struct {
-	name string
-}
+type AssetServeHandler string
 
-func (h *AssetServeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(h.name)))
+func (name AssetServeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	res.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(string(name))))
 	modTime := startTime
 	if BUILD == "debug" {
 		modTime = time.Now()
 	}
-	http.ServeContent(w, req, h.name, modTime, bytes.NewReader(assets.MustAsset(h.name)))
+	http.ServeContent(res, req, string(name), modTime, bytes.NewReader(assets.MustAsset(string(name))))
 }
 
 func main() {
@@ -141,7 +139,7 @@ func main() {
 			continue
 		}
 		urlPath := strings.TrimPrefix(file, PUBLIC)
-		r.Path(urlPath).Handler(&AssetServeHandler{name: file})
+		r.Path(urlPath).Handler(AssetServeHandler(file))
 	}
 
 	filesystems := map[string]*fs.Filesystem{}
