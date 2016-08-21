@@ -110,3 +110,17 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+
+.embed-media.embed-unknown {
+	width: 200px;
+	height: 200px;
+	font-size: 147px;
+	text-align: center;
+	color: #fff;
+	background-color: #1976d2;
+}
+
+.embed-media.embed-directory ~ .embed-actionbutton.embed-download,
+.embed-media.embed-unknown ~ .embed-actionbutton.embed-download {
+	display: none;
+}

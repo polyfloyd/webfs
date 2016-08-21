@@ -49,9 +49,12 @@
 		font-size 0.2s;
 }
 
-.file-tile.file-type-image .tile-icon {
-	transform: scale(0);
-	opacity: 0;
+.file-tile.file-type-image-svg-xml .tile-icon,
+.file-tile.file-type-image-bmp .tile-icon,
+.file-tile.file-type-image-jpeg .tile-icon,
+.file-tile.file-type-image-png .tile-icon,
+.file-tile.file-type-image-tiff .tile-icon {
+	display: none;
 }
 
 .file-tile:hover .tile-icon {

@@ -6,10 +6,16 @@ var FileTileView = Backbone.View.extend({
 
 		this.files = args.files;
 		this.setElement(this.template({
-			files:   this.files,
-			icons:   this.icons,
-			fs:      args.fs,
-			urlroot: URLROOT,
+			files:     this.files,
+			fs:        args.fs,
+			urlroot:   URLROOT,
+			iconClass: function(file) {
+				return self.icons.find(function(icon) {
+					return icon.match.some(function(expression) {
+						return file.type.match(expression);
+					});
+				}).class;
+			},
 		}));
 
 		this.$('li').on('click', function(event) {
@@ -20,19 +26,36 @@ var FileTileView = Backbone.View.extend({
 		});
 	},
 
-	icons: {
-		directory: 'fa fa-folder',
-		image:     'fa fa-picture-o',
-		video:     'fa fa-video-camera',
-	},
+	icons: [
+		{
+			match: [ /^directory$/ ],
+			class: 'fa fa-folder',
+		},
+		{
+			match: [ /^video/, /^image\/gif$/ ],
+			class: 'fa fa-video-camera',
+		},
+		{
+			match: [ /^image/ ],
+			class: 'fa fa-picture-o',
+		},
+		{
+			match: [ /^text/, /^application\/pdf$/ ],
+			class: 'fa fa-file-text',
+		},
+		{
+			match: [ /^.*$/ ],
+			class: 'fa fa-file',
+		},
+	],
 
 	template: _.template(
 		'<ul class="file-tilelist">'+
 			'<% files.forEach(function(file, index) { %>'+
 				'<li '+
-					'class="file-tile file-type-<%- file.type %> <%= file.hasThumb ? \'fs-thumb\' : \'\' %>" '+
+					'class="file-tile file-type-<%- file.type.replace(/\\W/g, \'-\') %> <%= file.hasThumb ? \'fs-thumb\' : \'\' %>" '+
 					'data-index="<%= index %>">'+
-					'<div class="tile-icon <%= icons[file.type] %>"></div>'+
+					'<div class="tile-icon <%= iconClass(file) %>"></div>'+
 					'<div '+
 						'class="tile-background"'+
 						'title="<%- name %>"'+

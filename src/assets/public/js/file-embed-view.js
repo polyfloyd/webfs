@@ -19,7 +19,8 @@ var FileEmbedView = Backbone.View.extend({
 			self.seek(1);
 		});
 		this.$('.embed-bg, .embed-container').on('click', function(event) {
-			if (!$(event.target).hasClass('embed-media')) {
+			// Ignore the displayed file.
+			if ($(event.target).hasClass('embed-container')) {
 				self.close();
 			}
 		});
@@ -27,32 +28,36 @@ var FileEmbedView = Backbone.View.extend({
 
 	renderCurrentFile: function() {
 		var self = this;
-
 		this.$('.embed-content').addClass('fade-out');
 
 		setTimeout(function() {
 			var file = self.files[self.index];
-			var view = self.fileViewTemplates[file.type];
-			if (!view) {
-				view = function() { return ''; };
-			}
+			var view = fileViewTemplates.find(function(view) {
+				return view.match.some(function(expression) {
+					return file.type.match(expression);
+				});
+			});
 
 			self.$('.embed-container').html(self.contentTemplate({
 				urlroot:  URLROOT,
 				file:     file,
 				fs:       self.fs,
-				fileView: view({
+				fileView: view.template({
 					urlroot: URLROOT,
 					file:    file,
 					fs:      self.fs,
 				}),
 			}));
-			self.$('.embed-content .embed-media').on('load canplay', function() {
-				self.once('content-resize', function() {
-					self.$('.embed-content').removeClass('fade-out');
+			if (view.loading) {
+				self.$('.embed-content .embed-media').on('load canplay', function() {
+					self.once('content-resize', function() {
+						self.$('.embed-content').removeClass('fade-out');
+					});
+					self.resizeContent();
 				});
-				self.resizeContent();
-			});
+			} else {
+				self.$('.embed-content').removeClass('fade-out');
+			}
 			self.$('.embed-content .embed-close').on('click', function() {
 				self.close();
 			});
@@ -127,25 +132,66 @@ var FileEmbedView = Backbone.View.extend({
 		'</div>'
 	),
 	contentTemplate: _.template(
-		'<div class="embed-content fade-out file-type-<%- file.type %>">'+
+		'<div class="embed-content fade-out file-type-<%- file.type.replace(/\\W/g, \'-\') %>">'+
+			'<%= fileView %>'+
 			'<a class="embed-actionbutton embed-close fa fa-close" title="Close"></a>'+
 			'<a class="embed-actionbutton embed-download fa fa-external-link"'+
 				'href="<%= urlroot %>/get/<%= fs %>/<%- file.path %>"'+
 				'target="_blank"'+
 				'title="Open / Download / Expand"></a>'+
-			'<%= fileView %>'+
 			'<p class="embed-title"><%- file.name %></p>'+
 		'</div>'
 	),
-	fileViewTemplates: {
-		'image': _.template(
-			'<img class="embed-media" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" />'
-		),
-		'video': _.template(
+});
+
+var fileViewTemplates = [
+	{
+		match:    [ /^video/ ],
+		loading:  true,
+		template: _.template(
 			'<video class="embed-media" controls autoplay loop>'+
 				'<source type="video/mp4" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>?fmt=video%2Fmp4" />'+
 				'<source type="video/webm" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>?fmt=video%2Fwebm" />'+
 			'</video>'
 		),
 	},
-});
+	{
+		match:    [ /^image/ ],
+		loading:  true,
+		template: _.template(
+			'<img class="embed-media" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" />'
+		),
+	},
+	{
+		match:    [ /^text\/.*$/, /^application\/pdf$/ ],
+		loading:  true,
+		template: _.template(
+			'<iframe class="embed-media" style="width:800px;height:600px" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" />'
+		),
+	},
+	{
+		match:    [ /^directory$/ ],
+		loading:  false,
+		template: _.template(
+			'<a '+
+				'class="embed-media embed-directory" '+
+				'href="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" '+
+				'style="width:140px;height:140px;background-image:url(\'<%= urlroot %>/thumb/<%= fs %>/<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>.jpg\')" '+
+				'target="_blank" '+
+				'></a>'
+		),
+	},
+	{
+		match:    [ /^.*$/ ],
+		loading:  false,
+		template: _.template(
+			'<a '+
+				'class="embed-media embed-unknown" '+
+				'href="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" '+
+				'target="_blank" '+
+				'title="Download this file"'+
+				'><span class="fa fa-arrow-circle-down"></span>'+
+			'</a>'
+		),
+	},
+];

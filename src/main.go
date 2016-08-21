@@ -324,11 +324,8 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 					"type": func() string {
 						if child.Info.IsDir() {
 							return "directory"
-						} else if spl := strings.Split(child.MimeType(), "/"); len(spl) == 2 {
-							// Use the first part of the mime as filetype.
-							return spl[0]
 						} else {
-							return "generic"
+							return child.MimeType()
 						}
 					}(),
 					"hasThumb": thumb.FindThumber(child) != nil,
