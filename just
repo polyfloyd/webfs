@@ -80,7 +80,7 @@ case ${1:-} in
 		ASSETS_OUT="$WORKSPACE/src/assets-go"
 		mkdir -p "$ASSETS_OUT"
 
-		go-bindata \
+		"$GOPATH/bin/go-bindata" \
 			${INCLUDE_FLAGS:-} \
 			-nocompress \
 			-pkg="static" \
