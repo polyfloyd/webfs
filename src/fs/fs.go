@@ -10,7 +10,7 @@ import (
 type File struct {
 	Info os.FileInfo
 	Path string
-	fs   *Filesystem
+	Fs   *Filesystem
 }
 
 func (file File) Open() (*os.File, error) {
@@ -22,7 +22,7 @@ func (file File) MimeType() string {
 }
 
 func (file File) RealPath() string {
-	return path.Join(file.fs.RealPath, file.Path)
+	return path.Join(file.Fs.RealPath, file.Path)
 }
 
 func (file File) IsDotfile() bool {
@@ -35,7 +35,7 @@ func (file File) Parent() *File {
 		return nil
 	}
 	if parentPath == "." || parentPath == "/" {
-		return &file.fs.Root
+		return &file.Fs.Root
 	}
 
 	info, err := os.Stat(parentPath)
@@ -45,7 +45,7 @@ func (file File) Parent() *File {
 	return &File{
 		Info: info,
 		Path: parentPath,
-		fs:   file.fs,
+		Fs:   file.Fs,
 	}
 }
 
@@ -72,7 +72,7 @@ func (file File) Children() (map[string]*File, error) {
 		index[child.Name()] = &File{
 			Info: child,
 			Path: path.Join(file.Path, child.Name()),
-			fs:   file.fs,
+			Fs:   file.Fs,
 		}
 	}
 	return index, nil
@@ -98,7 +98,7 @@ func NewFilesystem(path, name string) (*Filesystem, error) {
 	fs.Root = File{
 		Info: stat,
 		Path: "/",
-		fs:   fs,
+		Fs:   fs,
 	}
 
 	return fs, nil

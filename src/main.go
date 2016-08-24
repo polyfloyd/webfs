@@ -167,9 +167,12 @@ func main() {
 	server := &http.Server{
 		Addr:           config.Address,
 		Handler:        r,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
+		ReadTimeout:    10 * time.Second,
+		// The timeout is set to this absurd value to make sure downloads don't
+		// get aborted after the usual 10 seconds. The issue can not be fixed
+		// right now due to limitations of the Go HTTP server.
+		WriteTimeout: 2 * time.Hour,
 	}
 	log.Fatal(server.ListenAndServe())
 }
@@ -315,12 +318,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 				}
 				files = append(files, map[string]interface{}{
 					"name": name,
-					"path": func() string {
-						if child.Path[0] == '/' {
-							return child.Path[1:]
-						}
-						return child.Path
-					}(),
+					"path": child.Path,
 					"type": func() string {
 						if child.Info.IsDir() {
 							return "directory"
@@ -432,6 +430,9 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 		}
 
 		res.Header().Set("Content-Type", "application/zip")
+		if file.Path == "/" {
+			res.Header().Set("Content-Disposition", "attachment; filename=\""+webfs.Name+".zip\"")
+		}
 
 		filter := func(file *fs.File) (bool, error) {
 			if file.IsDotfile() {

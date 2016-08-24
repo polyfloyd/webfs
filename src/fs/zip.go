@@ -44,10 +44,14 @@ func ZipTreeFilter(file *File, filter func(file *File) (bool, error), wr io.Writ
 	if err := addFiles(file); err != nil {
 		return err
 	}
-	return ZipFiles(files, path.Dir(file.Path), wr)
+	addPrefix := ""
+	if file.Path == "/" {
+		addPrefix = file.Fs.Name + "/"
+	}
+	return ZipFiles(files, path.Dir(file.Path), addPrefix, wr)
 }
 
-func ZipFiles(files []File, stripPrefix string, wr io.Writer) error {
+func ZipFiles(files []File, stripPrefix string, addPrefix string, wr io.Writer) error {
 	zipper := zip.NewWriter(wr)
 
 	for _, file := range files {
@@ -56,7 +60,7 @@ func ZipFiles(files []File, stripPrefix string, wr io.Writer) error {
 			return err
 		}
 
-		header.Name = strings.TrimPrefix(strings.TrimPrefix(file.Path, stripPrefix), "/")
+		header.Name = addPrefix + strings.TrimPrefix(strings.TrimPrefix(file.Path, stripPrefix), "/")
 		entry, err := zipper.CreateHeader(header)
 		if err != nil {
 			return err
