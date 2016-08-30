@@ -111,21 +111,24 @@ func main() {
 	staticAssets = genStaticAssets()
 
 	var thumbCache fs.Cache
+	var sessionBaseDir string
 	if config.Cache != nil && *config.Cache != "" {
 		cache, err := filecache.NewCache(path.Join(*config.Cache, "thumbs"), 0)
 		if err != nil {
 			log.Fatal(err)
 		}
 		thumbCache = cache
+		sessionBaseDir = *config.Cache
 	} else {
 		thumbCache = memcache.NewCache()
+		sessionBaseDir = os.TempDir()
 	}
 
 	if *noPasswd {
 		authenticator = NilAuthenticator{}
 		log.Println("Password authentication disabled")
 	} else {
-		auth, err := NewBasicAuthenticator(path.Join(*config.Cache, "sessions"))
+		auth, err := NewBasicAuthenticator(path.Join(sessionBaseDir, "sessions"))
 		if err != nil {
 			log.Fatal(err)
 		}
