@@ -3,6 +3,7 @@ package fs
 import (
 	"archive/zip"
 	"io"
+	"os"
 	"path"
 	"strings"
 )
@@ -66,7 +67,7 @@ func ZipFiles(files []File, stripPrefix string, addPrefix string, wr io.Writer) 
 			return err
 		}
 
-		fd, err := file.Open()
+		fd, err := os.Open(file.RealPath())
 		if err != nil {
 			return err
 		}

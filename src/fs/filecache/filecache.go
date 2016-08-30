@@ -24,7 +24,7 @@ func NewCache(dir string, perm os.FileMode) (*ThumbFileCache, error) {
 	if perm == 0 {
 		perm = 0700 | os.ModeTemporary
 	}
-	dir = fs.FixHome(dir)
+	dir = fs.ResolveHome(dir)
 
 	if err := os.MkdirAll(dir, perm); err != nil {
 		return nil, err

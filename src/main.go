@@ -297,7 +297,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 					// Scale down the image to reduce transfer time to the client.
 					const WIDTH, HEIGHT = 1366, 768
 					cachedImage, modTime, err := fs.CacheFile(thumbCache, file, "view", func(file *fs.File, wr io.Writer) error {
-						fd, err := file.Open()
+						fd, err := os.Open(file.RealPath())
 						if err != nil {
 							return err
 						}
@@ -335,7 +335,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 
 			files := make([]map[string]interface{}, len(children))[0:0]
 			for name, child := range children {
-				if child.IsDotfile() {
+				if fs.IsDotFile(child.Path) {
 					continue // Hide dotfiles
 				}
 				isUnlocked, err := authenticator.IsUnlocked(child, req)
@@ -351,7 +351,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 						if child.Info.IsDir() {
 							return "directory"
 						} else {
-							return child.MimeType()
+							return fs.MimeType(child.RealPath())
 						}
 					}(),
 					"hasThumb": (isUnlocked || directoryth.HasIconThumb(child)) && thumb.FindThumber(child) != nil,
@@ -381,7 +381,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 		if err != nil {
 			panic(err)
 		}
-		if file == nil || file.IsDotfile() {
+		if file == nil || fs.IsDotFile(file.Path) {
 			http.NotFound(res, req)
 			return
 		}
@@ -390,15 +390,15 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 	}
 }
 
-func htFsThumb(fs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWriter, req *http.Request) {
+func htFsThumb(webfs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		p := path.Join("/", mux.Vars(req)["path"])
-		file, err := fs.Find(p)
+		file, err := webfs.Find(p)
 		if err != nil {
 			panic(err)
 		}
 
-		if file == nil || file.IsDotfile() {
+		if file == nil || fs.IsDotFile(file.Path) {
 			http.NotFound(res, req)
 			return
 		}
@@ -434,7 +434,7 @@ func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Reque
 			panic(err)
 		}
 
-		if file == nil || file.IsDotfile() {
+		if file == nil || fs.IsDotFile(file.Path) {
 			http.NotFound(res, req)
 			return
 		}
@@ -463,7 +463,7 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 			panic(err)
 		}
 
-		if file == nil || file.IsDotfile() {
+		if file == nil || fs.IsDotFile(file.Path) {
 			http.NotFound(res, req)
 			return
 		}
@@ -474,7 +474,7 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 		}
 
 		filter := func(file *fs.File) (bool, error) {
-			if file.IsDotfile() {
+			if fs.IsDotFile(file.Path) {
 				return false, nil
 			}
 

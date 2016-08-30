@@ -6,9 +6,6 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
-	"mime"
-	"net/http"
-	"path"
 	"time"
 
 	"../fs"
@@ -35,18 +32,7 @@ func RegisterThumber(thumber Thumber) {
 // This function attempts to determine the type using the filename and falls
 // back to http.DetectContentType() if that does not work.
 func AcceptMimes(file *fs.File, mimes ...string) bool {
-	fileMime := mime.TypeByExtension(path.Ext(file.Path))
-	if fileMime == "" || fileMime == "application/octet-stream" {
-		fd, err := file.Open()
-		if err != nil {
-			return false
-		}
-		defer fd.Close()
-		var buf [512]byte
-		n, _ := fd.Read(buf[:])
-		fileMime = http.DetectContentType(buf[:n])
-	}
-
+	fileMime := fs.MimeType(file.RealPath())
 	for _, mimetype := range mimes {
 		if fileMime == mimetype {
 			return true

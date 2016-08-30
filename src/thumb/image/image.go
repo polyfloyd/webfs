@@ -6,6 +6,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"os"
 
 	thumb ".."
 	"../../fs"
@@ -23,7 +24,7 @@ func (ImageThumber) Accepts(file *fs.File) bool {
 }
 
 func (ImageThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
-	fd, err := file.Open()
+	fd, err := os.Open(file.RealPath())
 	if err != nil {
 		return nil, err
 	}

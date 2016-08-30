@@ -1,7 +1,9 @@
 package fs
 
 import (
+	"log"
 	"mime"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -13,20 +15,8 @@ type File struct {
 	Fs   *Filesystem
 }
 
-func (file File) Open() (*os.File, error) {
-	return os.Open(file.RealPath())
-}
-
-func (file File) MimeType() string {
-	return mime.TypeByExtension(path.Ext(file.Path))
-}
-
 func (file File) RealPath() string {
 	return path.Join(file.Fs.RealPath, file.Path)
-}
-
-func (file File) IsDotfile() bool {
-	return file.Info.Name()[0] == '.'
 }
 
 func (file File) Parent() *File {
@@ -86,7 +76,7 @@ type Filesystem struct {
 
 func NewFilesystem(path, name string) (*Filesystem, error) {
 	fs := &Filesystem{
-		RealPath: FixHome(path),
+		RealPath: ResolveHome(path),
 		Name:     name,
 	}
 
@@ -159,4 +149,35 @@ func (fs *Filesystem) Tree(p string) ([]*File, error) {
 		return nil, err
 	}
 	return files, nil
+}
+
+func IsDotFile(filename string) bool {
+	return path.Base(filename)[0] == '.'
+}
+
+func MimeType(filename string) string {
+	fileMime := mime.TypeByExtension(path.Ext(filename))
+	if fileMime != "" && fileMime != "application/octet-stream" {
+		return fileMime
+	}
+
+	fd, err := os.Open(filename)
+	if err != nil {
+		return "application/octet-stream"
+	}
+	defer fd.Close()
+	var buf [512]byte
+	n, _ := fd.Read(buf[:])
+	return http.DetectContentType(buf[:n])
+}
+
+func ResolveHome(p string) string {
+	if len(p) == 0 || p[0] != '~' {
+		return p
+	}
+	home := os.Getenv("HOME")
+	if home == "" {
+		log.Fatal("~ found in path, but $HOME is not set")
+	}
+	return path.Join(home, p[1:])
 }

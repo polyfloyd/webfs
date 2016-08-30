@@ -96,7 +96,7 @@ type BasicAuthenticator struct {
 }
 
 func NewBasicAuthenticator(storageDir string) (*BasicAuthenticator, error) {
-	storageDir = fs.FixHome(storageDir)
+	storageDir = fs.ResolveHome(storageDir)
 	if err := os.MkdirAll(storageDir, 0700); err != nil {
 		return nil, err
 	}
