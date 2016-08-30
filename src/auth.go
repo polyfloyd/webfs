@@ -150,7 +150,7 @@ func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWri
 			}
 
 			if authenticated {
-				sess.Values[file.RealPath()] = true
+				sess.Values[passwdFile.RealPath()] = true
 				sess.Save(req, res)
 				return true, nil
 			}

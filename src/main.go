@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -156,7 +157,7 @@ func main() {
 		if _, ok := filesystems[fsConf.Name]; ok {
 			log.Fatalf("Duplicate filesystem %q", fsConf.Name)
 		}
-		webfs, err := fs.NewFilesystem(fsConf.Path, fsConf.Name)
+		webfs, err := fs.NewFilesystem(strings.TrimSuffix(fsConf.Path, "/"), fsConf.Name)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -194,23 +195,21 @@ func pregenerateThumbnails(filesystems map[string]*fs.Filesystem, thumbCache fs.
 	log.Printf("Generating thumbnails using %v workers", numRunners)
 
 	fileStream := make(chan *fs.File)
-	finished := make(chan bool)
-	defer close(fileStream)
-	defer close(finished)
-
 	go func() {
-		for _, fs := range filesystems {
-			files, err := fs.Tree("/")
-			if err != nil {
-				log.Printf("Unable to generate thumbs for FS %v: %v", fs.Name, err)
-			}
-			log.Printf("Generating %v thumbs for %v", len(files), fs.Name)
-			for _, file := range files {
-				fileStream <- file
-			}
-		}
-		for i := 0; i < numRunners; i++ {
-			finished <- true
+		defer close(fileStream)
+		for _, webfs := range filesystems {
+			log.Printf("Generating thumbs for %q", webfs.Name)
+			filepath.Walk(webfs.RealPath, func(path string, info os.FileInfo, err error) error {
+				if path == webfs.RealPath || fs.IsDotFile(path) {
+					return nil
+				}
+				fileStream <- &fs.File{
+					Info: info,
+					Path: strings.TrimPrefix(path, webfs.RealPath+"/"),
+					Fs:   webfs,
+				}
+				return nil
+			})
 		}
 	}()
 
@@ -219,21 +218,18 @@ func pregenerateThumbnails(filesystems map[string]*fs.Filesystem, thumbCache fs.
 	for i := 0; i < numRunners; i++ {
 		go func() {
 			defer wg.Done()
-			for {
-				select {
-				case file := <-fileStream:
-					if thumb, _, err := thumb.ThumbFile(thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT); err != nil {
-						log.Println(err)
-					} else if thumb != nil {
-						thumb.Close()
-					}
-				case <-finished:
-					break
+			for file := range fileStream {
+				log.Println(file.Path)
+				if thumb, _, err := thumb.ThumbFile(thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT); err != nil {
+					log.Println(err)
+				} else if thumb != nil {
+					thumb.Close()
 				}
 			}
 		}()
 	}
 	wg.Wait()
+	log.Printf("Done generating thumbs")
 }
 
 func baseTeplateArgs() map[string]interface{} {
@@ -433,7 +429,6 @@ func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Reque
 		if err != nil {
 			panic(err)
 		}
-
 		if file == nil || fs.IsDotFile(file.Path) {
 			http.NotFound(res, req)
 			return
@@ -448,12 +443,6 @@ func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Reque
 
 		http.ServeFile(res, req, file.RealPath())
 	}
-}
-
-type abortZipper struct{}
-
-func (abortZipper) Error() string {
-	return "abort zipper"
 }
 
 func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
@@ -477,18 +466,9 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 			if fs.IsDotFile(file.Path) {
 				return false, nil
 			}
-
-			// TODO: Slow as shit, will fix later.
-			authenticated, _ := authenticator.Authenticate(file, res, req)
-			if !authenticated {
-				return false, abortZipper{}
-			}
-			return authenticated, nil
+			return authenticator.IsUnlocked(file, req)
 		}
 		if err := fs.ZipTreeFilter(file, filter, res); err != nil {
-			if _, ok := err.(abortZipper); ok {
-				return
-			}
 			panic(err)
 		}
 	}

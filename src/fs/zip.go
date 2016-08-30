@@ -5,78 +5,51 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
-func ZipTree(file *File, wr io.Writer) error {
-	all := func(file *File) (bool, error) {
-		return true, nil
-	}
-	return ZipTreeFilter(file, all, wr)
-}
-
 func ZipTreeFilter(file *File, filter func(file *File) (bool, error), wr io.Writer) error {
-	var files []File
+	zipper := zip.NewWriter(wr)
+	defer zipper.Close()
 
-	var addFiles func(file *File) error
-	addFiles = func(file *File) error {
-		if include, err := filter(file); err != nil {
-			return err
-		} else if !include {
-			return nil
-		}
-		if !file.Info.IsDir() {
-			files = append(files, *file)
-			return nil
-		}
-
-		children, err := file.Children()
-		if err != nil || children == nil {
-			return err
-		}
-		for _, child := range children {
-			if err := addFiles(child); err != nil {
-				return nil
-			}
-		}
-		return nil
-	}
-
-	if err := addFiles(file); err != nil {
-		return err
-	}
+	stripPrefix := path.Dir(file.RealPath())
 	addPrefix := ""
 	if file.Path == "/" {
 		addPrefix = file.Fs.Name + "/"
+		stripPrefix = file.RealPath()
 	}
-	return ZipFiles(files, path.Dir(file.Path), addPrefix, wr)
-}
 
-func ZipFiles(files []File, stripPrefix string, addPrefix string, wr io.Writer) error {
-	zipper := zip.NewWriter(wr)
-
-	for _, file := range files {
-		header, err := zip.FileInfoHeader(file.Info)
-		if err != nil {
+	return filepath.Walk(file.RealPath(), func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		include, err := filter(&File{
+			Info: info,
+			Path: strings.TrimPrefix(path, file.Fs.RealPath+"/"),
+			Fs:   file.Fs,
+		})
+		if err != nil || !include {
 			return err
 		}
 
-		header.Name = addPrefix + strings.TrimPrefix(strings.TrimPrefix(file.Path, stripPrefix), "/")
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+		header.Name = addPrefix + strings.TrimPrefix(strings.TrimPrefix(path, stripPrefix), "/")
+
 		entry, err := zipper.CreateHeader(header)
 		if err != nil {
 			return err
 		}
 
-		fd, err := os.Open(file.RealPath())
+		fd, err := os.Open(path)
 		if err != nil {
 			return err
 		}
+		defer fd.Close()
 		_, err = io.Copy(entry, fd)
-		fd.Close()
-		if err != nil {
-			return err
-		}
-	}
-
-	return zipper.Close()
+		return err
+	})
 }

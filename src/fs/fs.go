@@ -24,19 +24,20 @@ func (file File) Parent() *File {
 	if parentPath == file.Path {
 		return nil
 	}
-	if parentPath == "." || parentPath == "/" {
+	if parentPath == "" || parentPath == "." || parentPath == "/" {
 		return &file.Fs.Root
 	}
 
-	info, err := os.Stat(parentPath)
-	if err != nil {
-		return nil
-	}
-	return &File{
-		Info: info,
+	parent := &File{
 		Path: parentPath,
 		Fs:   file.Fs,
 	}
+	info, err := os.Stat(parent.RealPath())
+	if err != nil {
+		return nil
+	}
+	parent.Info = info
+	return parent
 }
 
 // Gets the directory contents of the file, or nil if the file is not a
@@ -118,37 +119,6 @@ func (fs *Filesystem) Find(p string) (*File, error) {
 	}
 
 	return currentNode, nil
-}
-
-func (fs *Filesystem) Tree(p string) ([]*File, error) {
-	root, err := fs.Find(p)
-	if err != nil {
-		return nil, err
-	}
-
-	files := make([]*File, 0)
-
-	var iterChildren func(*File) error
-	iterChildren = func(file *File) error {
-		children, err := file.Children()
-		if err != nil {
-			return err
-		}
-		for _, child := range children {
-			files = append(files, child)
-			if child.Info.IsDir() {
-				if err := iterChildren(child); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-
-	if err := iterChildren(root); err != nil {
-		return nil, err
-	}
-	return files, nil
 }
 
 func IsDotFile(filename string) bool {
