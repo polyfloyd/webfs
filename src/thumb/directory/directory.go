@@ -12,6 +12,12 @@ import (
 	imageth "../image"
 )
 
+var iconNames = []string{
+	".icon.png",
+	".icon.jpg",
+	".icon.jpeg",
+}
+
 func init() {
 	thumb.RegisterThumber(DirectoryThumber{})
 }
@@ -29,17 +35,25 @@ func (DirectoryThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	return MosaicThumb(file, w, h)
 }
 
+func HasIconThumb(file *fs.File) bool {
+	children, err := file.Children()
+	if err != nil {
+		return false
+	}
+	for _, iconName := range iconNames {
+		if _, ok := children[iconName]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func IconThumb(file *fs.File, w, h int) (image.Image, error) {
 	children, err := file.Children()
 	if err != nil {
 		return nil, err
 	}
 
-	iconNames := []string{
-		".icon.png",
-		".icon.jpg",
-		".icon.jpeg",
-	}
 	for _, iconName := range iconNames {
 		if icon, ok := children[iconName]; ok {
 			return imageth.ImageThumber{}.Thumb(icon, w, h)

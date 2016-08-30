@@ -21,7 +21,7 @@ import (
 	"./fs/filecache"
 	"./fs/memcache"
 	"./thumb"
-	_ "./thumb/directory"
+	directoryth "./thumb/directory"
 	_ "./thumb/image"
 	_ "./thumb/vector"
 	_ "./thumb/video"
@@ -316,6 +316,12 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 				if child.IsDotfile() {
 					continue // Hide dotfiles
 				}
+				isUnlocked, err := authenticator.IsUnlocked(child, req)
+				if err != nil {
+					log.Println(err)
+					isUnlocked = false
+				}
+
 				files = append(files, map[string]interface{}{
 					"name": name,
 					"path": child.Path,
@@ -326,7 +332,16 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 							return child.MimeType()
 						}
 					}(),
-					"hasThumb": thumb.FindThumber(child) != nil,
+					"hasThumb": (isUnlocked || directoryth.HasIconThumb(child)) && thumb.FindThumber(child) != nil,
+					"hasPassword": func() bool {
+						hasPassword, err := authenticator.HasPassword(child)
+						if err != nil {
+							log.Println(err)
+							return true
+						}
+						return hasPassword
+					}(),
+					"isUnlocked": isUnlocked,
 				})
 			}
 
@@ -354,7 +369,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 }
 
 func htFsThumb(fs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
+	return func(res http.ResponseWriter, req *http.Request) {
 		p := path.Join("/", mux.Vars(req)["path"])
 		file, err := fs.Find(p)
 		if err != nil {
@@ -362,29 +377,31 @@ func htFsThumb(fs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWrite
 		}
 
 		if file == nil || file.IsDotfile() {
-			http.NotFound(w, req)
+			http.NotFound(res, req)
 			return
 		}
 
-		// TODO
-		// We don't check for password files when serving thumbnails for now.
-		// Not a whole lot of info can be leaked in 140x140 images. Especially
-		// with the program's current usage.
+		if auth, err := authenticator.IsUnlocked(file, req); err != nil {
+			panic(err)
+		} else if !auth && !directoryth.HasIconThumb(file) {
+			http.Error(res, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 
 		cachedThumb, modTime, err := thumb.ThumbFile(thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT)
 		if err != nil {
 			log.Println(err)
-			http.NotFound(w, req)
+			http.NotFound(res, req)
 			return
 		}
 		if cachedThumb == nil {
-			http.NotFound(w, req)
+			http.NotFound(res, req)
 			return
 		}
 		defer cachedThumb.Close()
 
-		w.Header().Set("Content-Type", "image/jpeg")
-		http.ServeContent(w, req, file.Info.Name(), modTime, cachedThumb)
+		res.Header().Set("Content-Type", "image/jpeg")
+		http.ServeContent(res, req, file.Info.Name(), modTime, cachedThumb)
 	}
 }
 

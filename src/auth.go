@@ -23,7 +23,7 @@ var passwdMatcher = regexp.MustCompile("(?m)^([^\\s]+)\\s([^\\s]+)$")
 func findAuthFile(file *fs.File) (*fs.File, error) {
 	children, err := file.Children()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error finding password file: %v", err)
 	}
 	if children == nil {
 		children = map[string]*fs.File{}
@@ -69,12 +69,25 @@ type Authenticator interface {
 	// The username and password are separated by whitespace. Neither the username
 	// or password may therefore contain whitespace.
 	Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) (bool, error)
+
+	HasPassword(file *fs.File) (bool, error)
+
+	IsUnlocked(file *fs.File, req *http.Request) (bool, error)
 }
 
 // An Authenticator that just allows everything. Useful for debuging purposes.
 type NilAuthenticator struct{}
 
 func (NilAuthenticator) Authenticate(*fs.File, http.ResponseWriter, *http.Request) (bool, error) {
+	return true, nil
+}
+
+func (NilAuthenticator) HasPassword(file *fs.File) (bool, error) {
+	authFile, err := findAuthFile(file)
+	return authFile != nil, err
+}
+
+func (NilAuthenticator) IsUnlocked(file *fs.File, req *http.Request) (bool, error) {
 	return true, nil
 }
 
@@ -113,7 +126,7 @@ func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWri
 	// First, look for a .passwd.txt, the file is protected if it is found.
 	passwdFile, err := findAuthFile(file)
 	if err != nil {
-		return false, fmt.Errorf("Error finding password file: %v", err)
+		return false, err
 	}
 	if passwdFile == nil {
 		return true, nil
@@ -151,4 +164,25 @@ func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWri
 
 	// The file has been authenticated by the session.
 	return true, nil
+}
+
+func (auth *BasicAuthenticator) HasPassword(file *fs.File) (bool, error) {
+	passwdFile, err := findAuthFile(file)
+	return passwdFile != nil, err
+}
+
+func (auth *BasicAuthenticator) IsUnlocked(file *fs.File, req *http.Request) (bool, error) {
+	passwdFile, err := findAuthFile(file)
+	if err != nil {
+		return false, err
+	}
+	if passwdFile == nil {
+		return true, nil
+	}
+	sess, err := auth.store.Get(req, "auth")
+	if err != nil {
+		return false, fmt.Errorf("Error getting session: %v", err)
+	}
+	_, sessAuth := sess.Values[passwdFile.RealPath()]
+	return sessAuth, nil
 }
