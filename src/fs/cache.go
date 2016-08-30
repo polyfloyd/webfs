@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"bytes"
 	"io"
 	"time"
 )
@@ -32,4 +33,40 @@ type Cache interface {
 	// Removes a cached file. If the instance identifier is "" all instances
 	// are removed. This function is a no-op if no file exists.
 	Destroy(file *File, instance string) error
+}
+
+func CacheFile(cache Cache, file *File, instance string, getContents func(*File, io.Writer) error) (ReadSeekCloser, time.Time, error) {
+	cached, modTime, err := cache.Get(file, instance)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	if cached == nil || file.Info.ModTime().After(modTime) {
+		cacheWriter, err := cache.Put(file, instance)
+		if err != nil {
+			cache.Destroy(file, instance)
+			return nil, time.Time{}, err
+		}
+
+		buf := &bufSeekCloser{}
+		if err := getContents(file, io.MultiWriter(&buf.buf, cacheWriter)); err != nil {
+			cacheWriter.Close()
+			cache.Destroy(file, instance)
+			return nil, time.Time{}, err
+		}
+		cacheWriter.Close()
+
+		buf.Reader = bytes.NewReader(buf.buf.Bytes())
+		return buf, file.Info.ModTime(), nil
+	}
+	return cached, modTime, nil
+}
+
+type bufSeekCloser struct {
+	buf bytes.Buffer
+	*bytes.Reader
+}
+
+func (bufSeekCloser) Close() error {
+	return nil
 }

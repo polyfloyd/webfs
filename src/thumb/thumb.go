@@ -70,37 +70,17 @@ func FindThumber(file *fs.File) Thumber {
 //
 // The thumbnail is exposed as a JPEG image.
 func ThumbFile(thumbCache fs.Cache, file *fs.File, width, height int) (fs.ReadSeekCloser, time.Time, error) {
-	cachedThumb, modTime, err := thumbCache.Get(file, cacheInstance(width, height))
-	if err != nil {
-		return nil, time.Time{}, err
-	}
-
-	if cachedThumb == nil || file.Info.ModTime().After(modTime) {
+	return fs.CacheFile(thumbCache, file, cacheInstance(width, height), func(file *fs.File, wr io.Writer) error {
 		th := FindThumber(file)
 		if th == nil {
-			return nil, time.Time{}, nil
+			return fmt.Errorf("No thumber to generate thumbnail for %q", file.Path)
 		}
-
-		cacheWriter, err := thumbCache.Put(file, cacheInstance(width, height))
-		if err != nil {
-			return nil, time.Time{}, err
-		}
-
 		img, err := th.Thumb(file, width, height)
 		if err != nil {
-			cacheWriter.Close()
-			thumbCache.Destroy(file, cacheInstance(width, height))
-			return nil, time.Time{}, err
+			return err
 		}
-
-		buf := &bufSeekCloser{}
-		jpeg.Encode(io.MultiWriter(&buf.buf, cacheWriter), img, nil)
-		cacheWriter.Close()
-		buf.Reader = bytes.NewReader(buf.buf.Bytes())
-		return buf, file.Info.ModTime(), nil
-	}
-
-	return cachedThumb, modTime, nil
+		return jpeg.Encode(wr, img, nil)
+	})
 }
 
 func cacheInstance(w, h int) string {

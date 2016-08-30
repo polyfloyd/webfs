@@ -2,6 +2,7 @@ package image
 
 import (
 	"image"
+	"image/draw"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -33,6 +34,18 @@ func (ImageThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 		return nil, err
 	}
 
-	// Preserve aspect ratio by setting height to 0
-	return resize.Thumbnail(uint(w), uint(h), img, resize.NearestNeighbor), nil
+	var src image.Image
+	if img.Bounds().Dx() > img.Bounds().Dy() {
+		src = resize.Resize(0, uint(h), img, resize.NearestNeighbor)
+	} else {
+		src = resize.Resize(uint(w), 0, img, resize.NearestNeighbor)
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(dst, dst.Bounds(), src, image.Point{
+		X: (src.Bounds().Dx() - w) / 2,
+		Y: (src.Bounds().Dy() - h) / 2,
+	}, draw.Over)
+	return dst, nil
+
 }

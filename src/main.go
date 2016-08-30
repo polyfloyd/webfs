@@ -5,6 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 	"html/template"
+	"image"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
+	"io"
 	"log"
 	"mime"
 	"net/http"
@@ -26,6 +31,7 @@ import (
 	_ "./thumb/vector"
 	_ "./thumb/video"
 	"github.com/gorilla/mux"
+	"github.com/nfnt/resize"
 )
 
 const (
@@ -281,7 +287,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 				if parent := file.Parent(); parent != nil {
 					renderFile(parent)
 				} else {
-					res.Write([]byte("Unauthorized"))
+					http.Error(res, "Unauthorized", http.StatusUnauthorized)
 				}
 				return
 			}
@@ -290,7 +296,20 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 				if thumb.AcceptMimes(file, "image/jpeg", "image/png") {
 					// Scale down the image to reduce transfer time to the client.
 					const WIDTH, HEIGHT = 1366, 768
-					cachedImage, modTime, err := thumb.ThumbFile(thumbCache, file, WIDTH, HEIGHT)
+					cachedImage, modTime, err := fs.CacheFile(thumbCache, file, "view", func(file *fs.File, wr io.Writer) error {
+						fd, err := file.Open()
+						if err != nil {
+							return err
+						}
+						defer fd.Close()
+						img, _, err := image.Decode(fd)
+						if err != nil {
+							return err
+						}
+						resized := resize.Thumbnail(WIDTH, HEIGHT, img, resize.NearestNeighbor)
+						return jpeg.Encode(wr, resized, nil)
+					})
+
 					if err != nil {
 						log.Println(err)
 						http.NotFound(res, req)

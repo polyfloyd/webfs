@@ -85,9 +85,15 @@ func MosaicThumb(file *fs.File, w, h int) (image.Image, error) {
 
 	var nCellsX int
 	var nCellsY int
-	if len(thumbableFiles) < 2*2 {
+	if len(thumbableFiles) == 1 {
 		nCellsX = 1
 		nCellsY = 1
+	} else if len(thumbableFiles) == 2 {
+		nCellsX = 1
+		nCellsY = 2
+	} else if len(thumbableFiles) == 3 {
+		nCellsX = 1
+		nCellsY = 3
 	} else if len(thumbableFiles) < 3*3 {
 		nCellsX = 2
 		nCellsY = 2
@@ -98,10 +104,7 @@ func MosaicThumb(file *fs.File, w, h int) (image.Image, error) {
 	cellW := w / nCellsX
 	cellH := h / nCellsY
 
-	dst := image.NewRGBA(image.Rectangle{
-		Min: image.Point{0, 0},
-		Max: image.Point{w, h},
-	})
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 
 	for x := 0; x < nCellsX; x++ {
 		for y := 0; y < nCellsY; y++ {
@@ -120,9 +123,9 @@ func MosaicThumb(file *fs.File, w, h int) (image.Image, error) {
 			}
 
 			draw.Draw(dst, image.Rectangle{
-				Min: image.Point{cellW * x, cellH * y},
-				Max: image.Point{cellW*x + cellW, cellH*y + cellH},
-			}, cell, image.Point{}, draw.Over)
+				Min: image.Point{X: cellW * x, Y: cellH * y},
+				Max: image.Point{X: cellW*x + cellW, Y: cellH*y + cellH},
+			}, cell, cell.Bounds().Min, draw.Over)
 		}
 	}
 
