@@ -37,21 +37,17 @@ func findAuthFile(file *fs.File) (*fs.File, error) {
 		}
 		return findAuthFile(parent)
 	}
-
 	return passwd, nil
 }
 
 func authFileAuthenticate(authFile *fs.File, rUsername, rPassword string) (bool, error) {
-	fd, err := authFile.Open()
+	buf, err := ioutil.ReadFile(authFile.RealPath())
 	if err != nil {
 		// Deny access if the password file can not be read.
 		return false, fmt.Errorf("Error opening password file: %v", err)
 	}
-	defer fd.Close()
 
-	var buf [2048]byte
-	n, _ := fd.Read(buf[:])
-	matches := passwdMatcher.FindAllStringSubmatch(string(buf[:n]), -1)
+	matches := passwdMatcher.FindAllStringSubmatch(string(buf), -1)
 	if matches == nil {
 		return false, fmt.Errorf("Password file %q is not valid.", authFile.RealPath())
 	}
