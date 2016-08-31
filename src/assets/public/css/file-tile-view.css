@@ -6,6 +6,7 @@
 	display: inline-block;
 	cursor: pointer;
 	list-style-type: none;
+	overflow: hidden;
 	border-radius: 4px;
 	box-shadow: 5px 5px 10px 0 rgba(0, 0, 0, 0.3);
 	transition:
@@ -34,33 +35,25 @@
 }
 
 .file-tile .tile-icon {
-	padding: 0.4em;
-	position: absolute;
-	right: -5px;
-	top: -5px;
-	font-size: 18px;
-	color: #fff;
-	border-radius: 50%;
-	background-color: #ff9800;
-	box-shadow: 0 0 0.5em 0 rgba(0, 0, 0, 0.4);
+	left: 20%;
+	top: 25%;
+	position: relative;
+	transform: scale(3);
+	color: rgba(34, 34, 34, 0.7);
+	opacity: 0;
 	transition:
-		opacity 0.2s,
-		transform 0.2s,
-		font-size 0.2s;
+		opacity 0.3s,
+		transform 0.3s;
 }
 
-.file-tile.file-type-image-svg-xml .tile-icon,
-.file-tile.file-type-image-bmp .tile-icon,
-.file-tile.file-type-image-jpeg .tile-icon,
-.file-tile.file-type-image-png .tile-icon,
-.file-tile.file-type-image-tiff .tile-icon {
-	display: none;
-}
-
+.file-tile .tile-icon.tile-icon-show,
 .file-tile:hover .tile-icon {
+	transform: scale(1.3);
 	opacity: 1;
-	transform: scale(1);
-	font-size: 22px;
+}
+
+.file-tile .tile-background {
+	background-color: #1976d2;
 }
 
 .file-tile .file-title {
