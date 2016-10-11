@@ -373,7 +373,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 			}
 		}
 
-		file, err := webfs.Find(path.Join("/", mux.Vars(req)["path"]))
+		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
 		if err != nil {
 			panic(err)
 		}
@@ -388,8 +388,7 @@ func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWrite
 
 func htFsThumb(webfs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		p := path.Join("/", mux.Vars(req)["path"])
-		file, err := webfs.Find(p)
+		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
 		if err != nil {
 			panic(err)
 		}
@@ -425,7 +424,7 @@ func htFsThumb(webfs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWr
 
 func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		file, err := webfs.Find(path.Join("/", mux.Vars(req)["path"]))
+		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
 		if err != nil {
 			panic(err)
 		}
@@ -447,7 +446,7 @@ func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Reque
 
 func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		file, err := webfs.Find(path.Join("/", mux.Vars(req)["path"]))
+		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
 		if err != nil {
 			panic(err)
 		}
