@@ -9,8 +9,6 @@ WORKSPACE="$PWD"
 BIN="$WORKSPACE/bin"
 LIB="$WORKSPACE/lib"
 GOPATH="$LIB/gopath"
-DIR_BOWER="$WORKSPACE/lib/bower"
-DIR_NPM="$WORKSPACE/lib/node_modules"
 ASSETS="$WORKSPACE/src/assets"
 
 mkdir -p "$BIN"
