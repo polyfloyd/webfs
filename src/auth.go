@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -135,7 +136,8 @@ func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWri
 	// Load the session and check wether the passwd file has been previously unlocked.
 	sess, err := auth.store.Get(req, "auth")
 	if err != nil {
-		return false, fmt.Errorf("Error getting session: %v", err)
+		log.Printf("Error getting session: %v", err)
+		return false, nil
 	}
 	_, sessAuth := sess.Values[passwdFile.RealPath()]
 
@@ -181,7 +183,8 @@ func (auth *BasicAuthenticator) IsUnlocked(file *fs.File, req *http.Request) (bo
 	}
 	sess, err := auth.store.Get(req, "auth")
 	if err != nil {
-		return false, fmt.Errorf("Error getting session: %v", err)
+		log.Printf("Error getting session: %v", err)
+		return false, nil
 	}
 	_, sessAuth := sess.Values[passwdFile.RealPath()]
 	return sessAuth, nil
