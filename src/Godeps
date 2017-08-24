@@ -1,4 +1,4 @@
-github.com/gorilla/mux          ee181543
-github.com/gorilla/securecookie ff356348
-github.com/gorilla/sessions     56ba4b0a
-github.com/nfnt/resize          dc93e1b9
+github.com/gorilla/mux          ac112f7d
+github.com/gorilla/securecookie e59506cc
+github.com/gorilla/sessions     b61c93cb
+github.com/nfnt/resize          891127d8
