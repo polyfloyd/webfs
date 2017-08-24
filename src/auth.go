@@ -136,8 +136,7 @@ func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWri
 	// Load the session and check wether the passwd file has been previously unlocked.
 	sess, err := auth.store.Get(req, "auth")
 	if err != nil {
-		log.Printf("Error getting session: %v", err)
-		return false, nil
+		sess, err = auth.store.New(req, "auth")
 	}
 	_, sessAuth := sess.Values[passwdFile.RealPath()]
 
