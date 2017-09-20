@@ -105,12 +105,12 @@ func (vt FFmpegThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	}
 	image, err := jpeg.Decode(o)
 	if err != nil {
+		cmd.Wait()
 		return nil, err
 	}
 	if err := cmd.Wait(); err != nil {
 		return nil, err
 	}
-
 	return image, nil
 }
 
@@ -167,12 +167,12 @@ func (vt AvconvThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	}
 	image, err := jpeg.Decode(o)
 	if err != nil {
+		cmd.Wait()
 		return nil, err
 	}
 	if err := cmd.Wait(); err != nil {
 		return nil, err
 	}
-
 	return image, nil
 }
 
