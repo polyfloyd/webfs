@@ -77,9 +77,12 @@ type Config struct {
 
 func LoadConfig(filename string) (*Config, error) {
 	config := &Config{}
-	if in, err := os.Open(filename); err != nil {
+	in, err := os.Open(filename)
+	if err != nil {
 		return nil, err
-	} else if err := json.NewDecoder(in).Decode(&config); err != nil {
+	}
+	defer in.Close()
+	if err := json.NewDecoder(in).Decode(&config); err != nil {
 		return nil, err
 	}
 	return config, nil
@@ -249,8 +252,8 @@ func baseTeplateArgs() map[string]interface{} {
 
 func genStaticAssets() map[string][]string {
 	static := map[string][]string{
-		"js":  []string{},
-		"css": []string{},
+		"js":  {},
+		"css": {},
 	}
 	for _, file := range assets.AssetNames() {
 		if !strings.HasPrefix(file, PUBLIC) {

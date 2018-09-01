@@ -58,5 +58,6 @@ func (VectorThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer pngFile.Close()
 	return png.Decode(pngFile)
 }

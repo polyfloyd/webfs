@@ -40,6 +40,7 @@ func NewCache(dir string, perm os.FileMode) (*ThumbFileCache, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer fd.Close()
 	filenames, err := fd.Readdirnames(-1)
 	if err != nil {
 		return nil, err
