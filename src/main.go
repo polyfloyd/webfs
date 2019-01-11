@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
+	"fmt"
 	"html/template"
 	"image"
 	_ "image/gif"
@@ -37,8 +37,7 @@ import (
 )
 
 const (
-	PUBLIC   = "public"
-	CONFFILE = "config.json"
+	PUBLIC = "public"
 )
 
 const (
@@ -58,38 +57,14 @@ var (
 	startTime     = time.Now()
 	pageTemplates = map[string]*template.Template{}
 	authenticator Authenticator
-	config        *Config
 	staticAssets  map[string][]string
 )
 
-type Config struct {
-	Address string `json:"address"`
-	URLRoot string `json:"urlroot"`
-
-	Cache *string `json:"cache"`
-
-	Piwik       bool   `json:"piwik"`
-	PiwikRoot   string `json:"piwikroot"`
-	PiwikSiteID int    `json:"piwiksiteid"`
-
-	FS []struct {
-		Path string `json:"path"`
-		Name string `json:"name"`
-	} `json:"fs"`
-}
-
-func LoadConfig(filename string) (*Config, error) {
-	config := &Config{}
-	in, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer in.Close()
-	if err := json.NewDecoder(in).Decode(&config); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
+var (
+	urlRoot     string
+	piwikRoot   string
+	piwikSiteID int
+)
 
 type AssetServeHandler string
 
@@ -105,8 +80,14 @@ func (name AssetServeHandler) ServeHTTP(res http.ResponseWriter, req *http.Reque
 func main() {
 	log.Printf("Version: %v (%v)\n", version, build)
 
-	configFile := flag.String("conf", CONFFILE, "Path to the configuration file")
-	preGenThumbs := flag.Bool("pregenthumbs", false, "Generate thumbnails for every file in all configured filesystems")
+	listenAddress := flag.String("listen", "localhost:8080", "The HTTP root of a Piwik installation, must not end with a slash")
+	flag.StringVar(&urlRoot, "urlroot", "", "The HTTP root, must not end with a slash")
+	flag.StringVar(&piwikRoot, "piwik-root", "", "The HTTP root of a Piwik installation, must not end with a slash")
+	flag.IntVar(&piwikSiteID, "piwik-site", 0, "The Piwik Site ID")
+	pregenThumbs := flag.Bool("pregen-thumbs", false, "Generate thumbnails for every file in all configured filesystems on startup")
+	defaultCacheDir := path.Join(os.TempDir(), fmt.Sprintf("webfs-%d", os.Getuid()))
+	cacheDir := flag.String("cache-dir", defaultCacheDir, "The directory to store generated thumbnails. If empty, all files are kept in memory")
+	mountPath := flag.String("mount", ".", "The root directory to expose")
 	var noPasswd *bool
 	if build == "debug" {
 		noPasswd = flag.Bool("nopasswd", false, "Globally disable passord protection (debug builds only)")
@@ -115,23 +96,21 @@ func main() {
 	}
 	flag.Parse()
 
-	var err error
-	config, err = LoadConfig(*configFile)
-	if err != nil {
-		log.Fatal(err)
+	if urlRoot == "" {
+		urlRoot = fmt.Sprintf("http://%s", *listenAddress)
 	}
 
 	staticAssets = genStaticAssets()
 
 	var thumbCache fs.Cache
 	var sessionBaseDir string
-	if config.Cache != nil && *config.Cache != "" {
-		cache, err := filecache.NewCache(path.Join(*config.Cache, "thumbs"), 0)
+	if *cacheDir != "" {
+		cache, err := filecache.NewCache(path.Join(*cacheDir, "thumbs"), 0)
 		if err != nil {
 			log.Fatal(err)
 		}
 		thumbCache = cache
-		sessionBaseDir = *config.Cache
+		sessionBaseDir = *cacheDir
 	} else {
 		thumbCache = memcache.NewCache()
 		sessionBaseDir = os.TempDir()
@@ -159,29 +138,29 @@ func main() {
 	}
 
 	filesystems := map[string]*fs.Filesystem{}
-	for _, fsConf := range config.FS {
-		if _, ok := filesystems[fsConf.Name]; ok {
-			log.Fatalf("Duplicate filesystem %q", fsConf.Name)
-		}
-		webfs, err := fs.NewFilesystem(strings.TrimSuffix(fsConf.Path, "/"), fsConf.Name)
-		if err != nil {
-			log.Fatal(err)
-		}
-		filesystems[fsConf.Name] = webfs
+	name := "mount"
 
-		r.Path("/view/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsView(webfs, thumbCache))
-		r.Path("/thumb/" + fsConf.Name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs, thumbCache))
-		r.Path("/get/" + fsConf.Name + "/{path:.*}").HandlerFunc(htFsGet(webfs))
-		r.Path("/download/" + fsConf.Name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
+	if _, ok := filesystems[name]; ok {
+		log.Fatalf("Duplicate filesystem %q", name)
 	}
+	webfs, err := fs.NewFilesystem(strings.TrimSuffix(*mountPath, "/"), name)
+	if err != nil {
+		log.Fatal(err)
+	}
+	filesystems[name] = webfs
 
-	if *preGenThumbs {
+	r.Path("/view/" + name + "/{path:.*}").HandlerFunc(htFsView(webfs, thumbCache))
+	r.Path("/thumb/" + name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs, thumbCache))
+	r.Path("/get/" + name + "/{path:.*}").HandlerFunc(htFsGet(webfs))
+	r.Path("/download/" + name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
+
+	if *pregenThumbs {
 		go pregenerateThumbnails(filesystems, thumbCache)
 	}
 
-	log.Printf("Now accepting HTTP connections on %v", config.Address)
+	log.Printf("Now accepting HTTP connections on %v", *listenAddress)
 	server := &http.Server{
-		Addr:           config.Address,
+		Addr:           *listenAddress,
 		Handler:        r,
 		MaxHeaderBytes: 1 << 20,
 		ReadTimeout:    10 * time.Second,
@@ -245,13 +224,13 @@ func baseTeplateArgs() map[string]interface{} {
 		"version":     version,
 		"versionDate": versionDate,
 
-		"urlroot": config.URLRoot,
+		"urlroot": urlRoot,
 		"assets":  staticAssets,
 		"time":    time.Now(),
 
-		"piwik":       config.Piwik,
-		"piwikRoot":   config.PiwikRoot,
-		"piwikSiteID": config.PiwikSiteID,
+		"piwik":       piwikRoot != "" && piwikSiteID != 0,
+		"piwikRoot":   piwikRoot,
+		"piwikSiteID": piwikSiteID,
 	}
 }
 

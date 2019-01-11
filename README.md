@@ -6,9 +6,25 @@ web-interface.
 
 
 ## Configuring
-Copy and modify `config.example.json` accordingly. By default,
-`$PWD/config.json` is used. This location can be overridden with the `-conf`
-option.
+```
+Usage of webfs:
+  -cache-dir string
+      The directory to store generated thumbnails. If empty, all files are kept in memory (default "/tmp/webfs-1000")
+  -listen string
+      The HTTP root of a Piwik installation, must not end with a slash (default "localhost:8080")
+  -mount string
+      The root directory to expose (default ".")
+  -nopasswd
+      Globally disable passord protection (debug builds only)
+  -piwik-root string
+      The HTTP root of a Piwik installation, must not end with a slash
+  -piwik-site int
+      The Piwik Site ID
+  -pregen-thumbs
+      Generate thumbnails for every file in all configured filesystems on startup
+  -urlroot string
+      The HTTP root, must not end with a slash
+```
 
 Some thumbnail processors require an external program to function:
 * Vector images (e.g. svg and pdf) require Inkscape

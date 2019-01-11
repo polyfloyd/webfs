@@ -1,6 +1,5 @@
 *~
 *.swp
 *.swo
-/config.json
 /bin
 /src/assets/assets.go
