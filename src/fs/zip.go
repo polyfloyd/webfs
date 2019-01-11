@@ -16,7 +16,7 @@ func ZipTreeFilter(file *File, filter func(file *File) (bool, error), wr io.Writ
 	stripPrefix := path.Dir(file.RealPath())
 	addPrefix := ""
 	if file.Path == "/" {
-		addPrefix = file.Fs.Name + "/"
+		addPrefix = "webfs/"
 		stripPrefix = file.RealPath()
 	}
 

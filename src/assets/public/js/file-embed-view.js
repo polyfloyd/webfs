@@ -3,7 +3,6 @@
 var FileEmbedView = Backbone.View.extend({
 	initialize: function(args) {
 		this.files = args.files;
-		this.fs    = args.fs;
 		this.index = args.index || 0;
 		this.render();
 	},
@@ -41,11 +40,9 @@ var FileEmbedView = Backbone.View.extend({
 			self.$('.embed-container').html(self.contentTemplate({
 				urlroot:  URLROOT,
 				file:     file,
-				fs:       self.fs,
 				fileView: view.template({
 					urlroot: URLROOT,
 					file:    file,
-					fs:      self.fs,
 				}),
 			}));
 			if (view.loading) {
@@ -136,7 +133,7 @@ var FileEmbedView = Backbone.View.extend({
 			'<%= fileView %>'+
 			'<a class="embed-actionbutton embed-close fa fa-close" title="Close"></a>'+
 			'<a class="embed-actionbutton embed-download fa fa-external-link"'+
-				'href="<%= urlroot %>/get/<%= fs %>/<%- file.path %>"'+
+				'href="<%= urlroot %>/get/<%- file.path %>"'+
 				'target="_blank"'+
 				'title="Open / Download / Expand"></a>'+
 			'<p class="embed-title"><%- file.name %></p>'+
@@ -150,8 +147,8 @@ var fileViewTemplates = [
 		loading:  true,
 		template: _.template(
 			'<video class="embed-media" controls autoplay loop>'+
-				'<source type="video/mp4" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>?fmt=video%2Fmp4" />'+
-				'<source type="video/webm" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>?fmt=video%2Fwebm" />'+
+				'<source type="video/mp4" src="<%= urlroot %>/view/<%- file.path %>?fmt=video%2Fmp4" />'+
+				'<source type="video/webm" src="<%= urlroot %>/view/<%- file.path %>?fmt=video%2Fwebm" />'+
 			'</video>'
 		),
 	},
@@ -159,14 +156,14 @@ var fileViewTemplates = [
 		match:    [ /^image/ ],
 		loading:  true,
 		template: _.template(
-			'<img class="embed-media" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" />'
+			'<img class="embed-media" src="<%= urlroot %>/view/<%- file.path %>" />'
 		),
 	},
 	{
 		match:    [ /^text\/.*$/, /^application\/pdf$/ ],
 		loading:  true,
 		template: _.template(
-			'<iframe class="embed-media" style="width:800px;height:600px" src="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" />'
+			'<iframe class="embed-media" style="width:800px;height:600px" src="<%= urlroot %>/view/<%- file.path %>" />'
 		),
 	},
 	{
@@ -175,8 +172,8 @@ var fileViewTemplates = [
 		template: _.template(
 			'<a '+
 				'class="embed-media embed-directory" '+
-				'href="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" '+
-				'style="width:140px;height:140px;background-image:url(\'<%= urlroot %>/thumb/<%= fs %>/<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>.jpg\')" '+
+				'href="<%= urlroot %>/view/<%- file.path %>" '+
+				'style="width:140px;height:140px;background-image:url(\'<%= urlroot %>/thumb/<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>.jpg\')" '+
 				'target="_blank" '+
 				'></a>'
 		),
@@ -187,7 +184,7 @@ var fileViewTemplates = [
 		template: _.template(
 			'<a '+
 				'class="embed-media embed-unknown" '+
-				'href="<%= urlroot %>/view/<%= fs %>/<%- file.path %>" '+
+				'href="<%= urlroot %>/view/<%- file.path %>" '+
 				'target="_blank" '+
 				'title="Download this file"'+
 				'><span class="fa fa-arrow-circle-down"></span>'+

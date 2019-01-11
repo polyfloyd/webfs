@@ -6,7 +6,6 @@ var PathBar = Backbone.View.extend({
 
 	initialize: function(args) {
 		this.path = args.path;
-		this.fs   = args.fs;
 		this.render();
 	},
 
@@ -17,7 +16,6 @@ var PathBar = Backbone.View.extend({
 			return !!name;
 		});
 		this.$el.html(this.template({
-			fs:      this.fs,
 			names:   names,
 			paths:   names.reduce(function(tupple, name) {
 				var path = tupple[1]+'/'+name;
@@ -36,7 +34,7 @@ var PathBar = Backbone.View.extend({
 		'<li '+
 			'class="pathbar-segment pathbar-root" '+
 			'data-path="/">'+
-			'<%- fs %>'+
+			'/'+
 		'</li>'+
 		'<% names.forEach(function(name, index) { %>'+
 			'<li '+

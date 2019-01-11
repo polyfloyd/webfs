@@ -40,7 +40,7 @@
 		<a
 			class="fs-download fa fa-cloud-download"
 			target="_blank"
-			href="{{ .urlroot }}/download/{{ .fs.Name }}/{{ .path }}.zip"
+			href="{{ .urlroot }}/download/{{ .path }}.zip"
 			title="Download this folder"></a>
 	</div>
 
@@ -57,7 +57,6 @@
 	<script>
 		initApp({
 			files: {{ .files }},
-			fs:    '{{ .fs.Name }}',
 			path:  '{{ .path }}',
 		});
 	</script>

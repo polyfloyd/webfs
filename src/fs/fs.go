@@ -71,14 +71,12 @@ func (file File) Children() (map[string]*File, error) {
 
 type Filesystem struct {
 	RealPath string
-	Name     string
 	Root     File
 }
 
-func NewFilesystem(path, name string) (*Filesystem, error) {
+func NewFilesystem(path string) (*Filesystem, error) {
 	fs := &Filesystem{
 		RealPath: ResolveHome(path),
-		Name:     name,
 	}
 
 	stat, err := os.Stat(fs.RealPath)

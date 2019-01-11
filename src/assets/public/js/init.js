@@ -3,10 +3,9 @@
 function initApp(options) {
 	var pathbar = new PathBar({
 		path: options.path,
-		fs:   options.fs,
 	});
 	pathbar.on('navigate', function(path) {
-		window.location = URLROOT+'/view/'+options.fs+'/'+path;
+		window.location = URLROOT+'/view/'+path;
 	});
 	$('.fs-header').append(pathbar.$el);
 
@@ -25,17 +24,15 @@ function initApp(options) {
 	});
 	var tileView = new FileTileView({
 		files: files,
-		fs:    options.fs,
 	});
 	$('.fs-tilelist-container').append(tileView.$el);
 
 	tileView.on('select', function(file, index, files, $el) {
 		if (file.type === 'directory') {
-			window.location = URLROOT+'/view/'+options.fs+'/'+file.path;
+			window.location = URLROOT+'/view/'+file.path;
 			return;
 		}
 		var embed = new FileEmbedView({
-			fs:    options.fs,
 			files: files,
 			index: index,
 		});

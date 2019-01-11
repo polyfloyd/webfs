@@ -7,7 +7,6 @@ var FileTileView = Backbone.View.extend({
 		this.files = args.files;
 		this.setElement(this.template({
 			files:     this.files,
-			fs:        args.fs,
 			urlroot:   URLROOT,
 			iconClass: function(file) {
 				return self.icons.find(function(icon) {
@@ -69,7 +68,7 @@ var FileTileView = Backbone.View.extend({
 						'class="tile-background"'+
 						'title="<%- name %>"'+
 						'style="<% if (file.hasThumb) { %>'+
-							'background-image: url(\'<%= urlroot %>/thumb/<%= fs %>/<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>.jpg\')'+
+							'background-image: url(\'<%= urlroot %>/thumb/<%- file.path.replace(/\'/g, \'\\\\\\\'\') %>.jpg\')'+
 						'<% } %>">'+
 							'<p class="file-title"><%- file.name %></p>'+
 						'</div>'+

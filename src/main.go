@@ -137,25 +137,18 @@ func main() {
 		r.Path(urlPath).Handler(AssetServeHandler(file))
 	}
 
-	filesystems := map[string]*fs.Filesystem{}
-	name := "mount"
-
-	if _, ok := filesystems[name]; ok {
-		log.Fatalf("Duplicate filesystem %q", name)
-	}
-	webfs, err := fs.NewFilesystem(strings.TrimSuffix(*mountPath, "/"), name)
+	filesystem, err := fs.NewFilesystem(strings.TrimSuffix(*mountPath, "/"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	filesystems[name] = webfs
 
-	r.Path("/view/" + name + "/{path:.*}").HandlerFunc(htFsView(webfs, thumbCache))
-	r.Path("/thumb/" + name + "/{path:.*}.jpg").HandlerFunc(htFsThumb(webfs, thumbCache))
-	r.Path("/get/" + name + "/{path:.*}").HandlerFunc(htFsGet(webfs))
-	r.Path("/download/" + name + "/{path:.*}.zip").HandlerFunc(htFsDownload(webfs))
+	r.Path("/view/{path:.*}").HandlerFunc(htFsView(filesystem, thumbCache))
+	r.Path("/thumb/{path:.*}.jpg").HandlerFunc(htFsThumb(filesystem, thumbCache))
+	r.Path("/get/{path:.*}").HandlerFunc(htFsGet(filesystem))
+	r.Path("/download/{path:.*}.zip").HandlerFunc(htFsDownload(filesystem))
 
 	if *pregenThumbs {
-		go pregenerateThumbnails(filesystems, thumbCache)
+		go pregenerateThumbnails(filesystem, thumbCache)
 	}
 
 	log.Printf("Now accepting HTTP connections on %v", *listenAddress)
@@ -172,7 +165,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func pregenerateThumbnails(filesystems map[string]*fs.Filesystem, thumbCache fs.Cache) {
+func pregenerateThumbnails(filesystem *fs.Filesystem, thumbCache fs.Cache) {
 	numRunners := runtime.NumCPU() / 2
 	if numRunners <= 0 {
 		numRunners = 1
@@ -182,20 +175,18 @@ func pregenerateThumbnails(filesystems map[string]*fs.Filesystem, thumbCache fs.
 	fileStream := make(chan *fs.File)
 	go func() {
 		defer close(fileStream)
-		for _, webfs := range filesystems {
-			log.Printf("Generating thumbs for %q", webfs.Name)
-			filepath.Walk(webfs.RealPath, func(path string, info os.FileInfo, err error) error {
-				if path == webfs.RealPath || fs.IsDotFile(path) {
-					return nil
-				}
-				fileStream <- &fs.File{
-					Info: info,
-					Path: strings.TrimPrefix(path, webfs.RealPath+"/"),
-					Fs:   webfs,
-				}
+		log.Printf("Generating thumbs")
+		filepath.Walk(filesystem.RealPath, func(path string, info os.FileInfo, err error) error {
+			if path == filesystem.RealPath || fs.IsDotFile(path) {
 				return nil
-			})
-		}
+			}
+			fileStream <- &fs.File{
+				Info: info,
+				Path: strings.TrimPrefix(path, filesystem.RealPath+"/"),
+				Fs:   filesystem,
+			}
+			return nil
+		})
 	}()
 
 	var wg sync.WaitGroup
@@ -445,7 +436,7 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 
 		res.Header().Set("Content-Type", "application/zip")
 		if file.Path == "/" {
-			res.Header().Set("Content-Disposition", "attachment; filename=\""+webfs.Name+".zip\"")
+			res.Header().Set("Content-Disposition", "attachment; filename=\"webfs.zip\"")
 		}
 
 		filter := func(file *fs.File) (bool, error) {
