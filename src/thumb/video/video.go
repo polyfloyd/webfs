@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	thumb ".."
-	"../../fs"
+	"github.com/polyfloyd/webfs/src/fs"
+	"github.com/polyfloyd/webfs/src/thumb"
 )
 
 var acceptMimes = []string{

@@ -4,48 +4,25 @@ set -eu
 cd `dirname $0`
 
 NAME="webfs"
-VERSION="$(git describe --always --dirty) ($(date --date="@$(git show -s --format='%ct' HEAD)" '+%Y-%m-%d'))"
 WORKSPACE="$PWD"
 BIN="$WORKSPACE/bin"
 LIB="$WORKSPACE/lib"
-GOPATH="$LIB/gopath"
 ASSETS="$WORKSPACE/src/assets"
+GO_BINDATA="github.com/tmthrgd/go-bindata/go-bindata"
+GO_MINIFY="github.com/tdewolff/minify/v2/cmd/minify"
+GO111MODULE=on
 
 mkdir -p "$BIN"
 mkdir -p "$LIB"
 
 usage() {
 cat << EOF
-SYNOPSIS
-
-    This is a very handy tool to manage this Go project.
-
 USAGE
-      $ $0 install    # Install dependencies
-      $ $0 build      # Build a binary
-      $ $0 run        # Run the currently built binary
+      $ $0 build    # Build a binary
 EOF
 }
 
 case ${1:-} in
-	"install")
-		echo "*** Installing minifier ***"
-		GOPATH="$GOPATH" go get -u github.com/tdewolff/minify/...
-
-		echo "*** Installing go-bindata ***"
-		GOPATH="$GOPATH" go get -u github.com/tmthrgd/go-bindata/...
-
-		echo "*** Installing Dependencies ***"
-		cat "$WORKSPACE/src/Godeps" | \
-		while read dep; do
-			pkg=`echo $dep | cut -f1 -d' '`
-			rev=`echo $dep | cut -f2 -d' '`
-			echo "  Installing $pkg"
-			GOPATH="$GOPATH" go get "$pkg"
-			pushd "$GOPATH/src/$pkg" > /dev/null; git checkout $rev --quiet; popd > /dev/null
-		done
-	;;
-
 	"build")
 		echo "*** Building Project ***"
 		if [ ${RELEASE:-} ]; then
@@ -54,45 +31,47 @@ case ${1:-} in
 
 			mkdir -p "$TEMP/public/js"
 			cat `find "$ASSETS" -name "*.js" | sort` \
-				| $GOPATH/bin/minify --type=js \
+				| go run $GO_MINIFY --type=js \
 				> "$TEMP/public/js/app.js"
 
 			mkdir -p "$TEMP/public/css"
 			cat `find "$ASSETS" -name "*.css" | sort` \
-				| $GOPATH/bin/minify --type=css \
+				| go run $GO_MINIFY --type=css \
 				> "$TEMP/public/css/app.css"
 
 			rsync -rL --exclude="*.css" --exclude="*.js" --exclude="/public/00-dep" "$ASSETS/" "$TEMP/"
 			rsync -rL --exclude="*.css" --exclude="*.js" "$ASSETS/public/00-dep/" "$TEMP/public"
 
-			echo 'release'  > "$TEMP/_BUILD"
-			echo "$VERSION" > "$TEMP/_VERSION"
+			BUILD="release"
 
 		else
 			INCLUDE_DIR="$ASSETS"
 			INCLUDE_FLAGS="-debug"
-			echo 'debug'    > "$ASSETS/_BUILD"
-			echo "$VERSION" > "$ASSETS/_VERSION"
+			BUILD="debug"
 		fi
 
-		ASSETS_OUT="$WORKSPACE/src/assets-go"
-		mkdir -p "$ASSETS_OUT"
-
-		"$GOPATH/bin/go-bindata" \
+		go run $GO_BINDATA \
 			${INCLUDE_FLAGS:-} \
 			-nocompress \
-			-pkg="static" \
+			-pkg="assets" \
 			-prefix="$INCLUDE_DIR" \
-			-o="$ASSETS_OUT/static.go" \
+			-o="$ASSETS/assets.go" \
 			`find "$INCLUDE_DIR" -type d`
 
-		cd "$WORKSPACE/src"
-		GOPATH="$GOPATH" go build -o "$WORKSPACE/bin/$NAME"
-		cd "$WORKSPACE"
-	;;
+		VERSION="$(git describe --always --dirty)"
+		VERSION_DATE="$(date --date="@$(git show -s --format='%ct' HEAD)" '+%F')"
+		BUILD_DATE="$(date '+%F_%T_%z')"
 
-	"run")
-		"$BIN/$NAME"
+		cd "$WORKSPACE/src"
+		go build \
+			-ldflags "
+				-X main.build=$BUILD
+				-X main.version=$VERSION
+				-X main.versionDate=$VERSION_DATE
+				-X main.buildDate=$BUILD_DATE
+			" \
+			-o "$BIN/$NAME"
+		cd "$WORKSPACE"
 	;;
 
 	*)

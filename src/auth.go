@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"./fs"
 	"github.com/gorilla/sessions"
+
+	"github.com/polyfloyd/webfs/src/fs"
 )
 
 var passwdMatcher = regexp.MustCompile("(?m)^([^\\s]+)\\s([^\\s]+)$")

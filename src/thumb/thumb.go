@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	"../fs"
+	"github.com/polyfloyd/webfs/src/fs"
 )
 
 var thumbers []Thumber

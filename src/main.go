@@ -22,17 +22,18 @@ import (
 	"sync"
 	"time"
 
-	assets "./assets-go"
-	"./fs"
-	"./fs/filecache"
-	"./fs/memcache"
-	"./thumb"
-	directoryth "./thumb/directory"
-	_ "./thumb/image"
-	_ "./thumb/vector"
-	_ "./thumb/video"
 	"github.com/gorilla/mux"
 	"github.com/nfnt/resize"
+
+	"github.com/polyfloyd/webfs/src/assets"
+	"github.com/polyfloyd/webfs/src/fs"
+	"github.com/polyfloyd/webfs/src/fs/filecache"
+	"github.com/polyfloyd/webfs/src/fs/memcache"
+	"github.com/polyfloyd/webfs/src/thumb"
+	directoryth "github.com/polyfloyd/webfs/src/thumb/directory"
+	_ "github.com/polyfloyd/webfs/src/thumb/image"
+	_ "github.com/polyfloyd/webfs/src/thumb/vector"
+	_ "github.com/polyfloyd/webfs/src/thumb/video"
 )
 
 const (
@@ -46,8 +47,10 @@ const (
 )
 
 var (
-	BUILD   = strings.Trim(string(assets.MustAsset("_BUILD")), "\n ")
-	VERSION = strings.Trim(string(assets.MustAsset("_VERSION")), "\n ")
+	build       = "%BUILD%"
+	version     = "%VERSION%"
+	versionDate = "%VERSION_DATE%"
+	buildDate   = "%BUILD_DATE%"
 )
 
 // Global vars are bad, but these are not supposed to be changed.
@@ -93,19 +96,19 @@ type AssetServeHandler string
 func (name AssetServeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(string(name))))
 	modTime := startTime
-	if BUILD == "debug" {
+	if build == "debug" {
 		modTime = time.Now()
 	}
 	http.ServeContent(res, req, string(name), modTime, bytes.NewReader(assets.MustAsset(string(name))))
 }
 
 func main() {
-	log.Printf("Version: %v (%v)\n", VERSION, BUILD)
+	log.Printf("Version: %v (%v)\n", version, build)
 
 	configFile := flag.String("conf", CONFFILE, "Path to the configuration file")
 	preGenThumbs := flag.Bool("pregenthumbs", false, "Generate thumbnails for every file in all configured filesystems")
 	var noPasswd *bool
-	if BUILD == "debug" {
+	if build == "debug" {
 		noPasswd = flag.Bool("nopasswd", false, "Globally disable passord protection (debug builds only)")
 	} else {
 		noPasswd = new(bool)
@@ -237,8 +240,10 @@ func pregenerateThumbnails(filesystems map[string]*fs.Filesystem, thumbCache fs.
 
 func baseTeplateArgs() map[string]interface{} {
 	return map[string]interface{}{
-		"build":   BUILD,
-		"version": VERSION,
+		"build":       build,
+		"buildDate":   buildDate,
+		"version":     version,
+		"versionDate": versionDate,
 
 		"urlroot": config.URLRoot,
 		"assets":  staticAssets,
@@ -477,7 +482,7 @@ func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.
 }
 
 func getPageTemplate(name string) *template.Template {
-	if BUILD == "debug" {
+	if build == "debug" {
 		return template.Must(template.New(name).Parse(string(assets.MustAsset(name))))
 	} else {
 		if tmpl, ok := pageTemplates[name]; ok {

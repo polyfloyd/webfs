@@ -3,6 +3,4 @@
 *.swo
 /config.json
 /bin
-/lib/gopath
-/src/assets-go
-/src/assets/_*
+/src/assets/assets.go

@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strconv"
 
-	thumb ".."
-	"../../fs"
+	"github.com/polyfloyd/webfs/src/fs"
+	"github.com/polyfloyd/webfs/src/thumb"
 )
 
 func init() {

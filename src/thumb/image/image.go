@@ -8,9 +8,10 @@ import (
 	_ "image/png"
 	"os"
 
-	thumb ".."
-	"../../fs"
 	"github.com/nfnt/resize"
+
+	"github.com/polyfloyd/webfs/src/fs"
+	"github.com/polyfloyd/webfs/src/thumb"
 )
 
 func init() {
