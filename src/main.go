@@ -49,7 +49,6 @@ var (
 	build       = "%BUILD%"
 	version     = "%VERSION%"
 	versionDate = "%VERSION_DATE%"
-	buildDate   = "%BUILD_DATE%"
 )
 
 // Global vars are bad, but these are not supposed to be changed.
@@ -211,7 +210,6 @@ func pregenerateThumbnails(filesystem *fs.Filesystem, thumbCache fs.Cache) {
 func baseTeplateArgs() map[string]interface{} {
 	return map[string]interface{}{
 		"build":       build,
-		"buildDate":   buildDate,
 		"version":     version,
 		"versionDate": versionDate,
 
