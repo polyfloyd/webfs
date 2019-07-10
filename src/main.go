@@ -14,7 +14,6 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -22,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi"
 	"github.com/nfnt/resize"
 
 	"webfs/src/assets"
@@ -46,16 +45,15 @@ const (
 )
 
 var (
-	build       = "%BUILD%"
-	version     = "%VERSION%"
-	versionDate = "%VERSION_DATE%"
+	build       = "<unset>"
+	version     = "<unset>"
+	versionDate = "<unset>"
 )
 
 // Global vars are bad, but these are not supposed to be changed.
 var (
 	startTime     = time.Now()
 	pageTemplates = map[string]*template.Template{}
-	authenticator Authenticator
 	staticAssets  map[string][]string
 )
 
@@ -67,13 +65,13 @@ var (
 
 type AssetServeHandler string
 
-func (name AssetServeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	res.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(string(name))))
+func (name AssetServeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(string(name))))
 	modTime := startTime
 	if build == "debug" {
 		modTime = time.Now()
 	}
-	http.ServeContent(res, req, string(name), modTime, bytes.NewReader(assets.MustAsset(string(name))))
+	http.ServeContent(w, r, string(name), modTime, bytes.NewReader(assets.MustAsset(string(name))))
 }
 
 func main() {
@@ -84,7 +82,7 @@ func main() {
 	flag.StringVar(&piwikRoot, "piwik-root", "", "The HTTP root of a Piwik installation, must not end with a slash")
 	flag.IntVar(&piwikSiteID, "piwik-site", 0, "The Piwik Site ID")
 	pregenThumbs := flag.Bool("pregen-thumbs", false, "Generate thumbnails for every file in all configured filesystems on startup")
-	defaultCacheDir := path.Join(os.TempDir(), fmt.Sprintf("webfs-%d", os.Getuid()))
+	defaultCacheDir := filepath.Join(os.TempDir(), fmt.Sprintf("webfs-%d", os.Getuid()))
 	cacheDir := flag.String("cache-dir", defaultCacheDir, "The directory to store generated thumbnails. If empty, all files are kept in memory")
 	mountPath := flag.String("mount", ".", "The root directory to expose")
 	var noPasswd *bool
@@ -104,7 +102,7 @@ func main() {
 	var thumbCache fs.Cache
 	var sessionBaseDir string
 	if *cacheDir != "" {
-		cache, err := filecache.NewCache(path.Join(*cacheDir, "thumbs"), 0)
+		cache, err := filecache.NewCache(filepath.Join(*cacheDir, "thumbs"), 0)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -115,25 +113,32 @@ func main() {
 		sessionBaseDir = os.TempDir()
 	}
 
+	var authenticator Authenticator
 	if *noPasswd {
 		authenticator = NilAuthenticator{}
 		log.Println("Password authentication disabled")
 	} else {
-		auth, err := NewBasicAuthenticator(path.Join(sessionBaseDir, "sessions"))
+		auth, err := NewBasicAuthenticator(filepath.Join(sessionBaseDir, "sessions"))
 		if err != nil {
 			log.Fatal(err)
 		}
 		authenticator = auth
 	}
 
-	r := mux.NewRouter()
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("%s %s", r.Method, r.URL.Path)
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	for _, file := range assets.AssetNames() {
 		if !strings.HasPrefix(file, PUBLIC) {
 			continue
 		}
 		urlPath := strings.TrimPrefix(file, PUBLIC)
-		r.Path(urlPath).Handler(AssetServeHandler(file))
+		r.Mount(urlPath, AssetServeHandler(file))
 	}
 
 	filesystem, err := fs.NewFilesystem(strings.TrimSuffix(*mountPath, "/"))
@@ -141,10 +146,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	r.Path("/view/{path:.*}").HandlerFunc(htFsView(filesystem, thumbCache))
-	r.Path("/thumb/{path:.*}.jpg").HandlerFunc(htFsThumb(filesystem, thumbCache))
-	r.Path("/get/{path:.*}").HandlerFunc(htFsGet(filesystem))
-	r.Path("/download/{path:.*}.zip").HandlerFunc(htFsDownload(filesystem))
+	web := Web{
+		fs:            filesystem,
+		thumbCache:    thumbCache,
+		authenticator: authenticator,
+	}
+
+	r.Get("/view/*", web.view)
+	r.Get("/thumb/*", web.thumb)
+	r.Get("/get/*", web.get)
+	r.Get("/download/*", web.download)
 
 	if *pregenThumbs {
 		go pregenerateThumbnails(filesystem, thumbCache)
@@ -234,7 +245,7 @@ func genStaticAssets() map[string][]string {
 		}
 		urlPath := strings.TrimPrefix(file, PUBLIC)
 
-		switch path.Ext(file) {
+		switch filepath.Ext(file) {
 		case ".css":
 			static["css"] = append(static["css"], urlPath)
 		case ".js":
@@ -247,205 +258,207 @@ func genStaticAssets() map[string][]string {
 	return static
 }
 
-func htFsView(webfs *fs.Filesystem, thumbCache fs.Cache) func(http.ResponseWriter, *http.Request) {
-	return func(res http.ResponseWriter, req *http.Request) {
-		var renderFile func(*fs.File)
-		renderFile = func(file *fs.File) {
-			auth, err := authenticator.Authenticate(file, res, req)
-			if err != nil {
-				panic(err)
-			}
-			if !auth {
-				if parent := file.Parent(); parent != nil {
-					renderFile(parent)
-				} else {
-					http.Error(res, "Unauthorized", http.StatusUnauthorized)
-				}
-				return
-			}
+type Web struct {
+	fs            *fs.Filesystem
+	authenticator Authenticator
+	thumbCache    fs.Cache
+}
 
-			if !file.Info.IsDir() {
-				if thumb.AcceptMimes(file, "image/jpeg", "image/png") {
-					// Scale down the image to reduce transfer time to the client.
-					const WIDTH, HEIGHT = 1366, 768
-					cachedImage, modTime, err := fs.CacheFile(thumbCache, file, "view", func(file *fs.File, wr io.Writer) error {
-						fd, err := os.Open(file.RealPath())
-						if err != nil {
-							return err
-						}
-						defer fd.Close()
-						img, _, err := image.Decode(fd)
-						if err != nil {
-							return err
-						}
-						resized := resize.Thumbnail(WIDTH, HEIGHT, img, resize.NearestNeighbor)
-						return jpeg.Encode(wr, resized, nil)
-					})
+func (web *Web) view(w http.ResponseWriter, r *http.Request) {
+	var renderFile func(*fs.File)
+	renderFile = func(file *fs.File) {
+		auth, err := web.authenticator.Authenticate(file, w, r)
+		if err != nil {
+			panic(err)
+		}
+		if !auth {
+			if parent := file.Parent(); parent != nil {
+				renderFile(parent)
+			} else {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
+			return
+		}
 
+		if !file.Info.IsDir() {
+			if thumb.AcceptMimes(file, "image/jpeg", "image/png") {
+				// Scale down the image to reduce transfer time to the client.
+				const WIDTH, HEIGHT = 1366, 768
+				cachedImage, modTime, err := fs.CacheFile(web.thumbCache, file, "view", func(file *fs.File, wr io.Writer) error {
+					fd, err := os.Open(file.RealPath())
 					if err != nil {
-						log.Println(err)
-						http.NotFound(res, req)
-						return
+						return err
 					}
-					if cachedImage == nil {
-						http.NotFound(res, req)
-						return
+					defer fd.Close()
+					img, _, err := image.Decode(fd)
+					if err != nil {
+						return err
 					}
-					defer cachedImage.Close()
-					http.ServeContent(res, req, file.Info.Name(), modTime, cachedImage)
+					resized := resize.Thumbnail(WIDTH, HEIGHT, img, resize.NearestNeighbor)
+					return jpeg.Encode(wr, resized, nil)
+				})
 
-				} else {
-					http.ServeFile(res, req, file.RealPath())
-				}
-				return
-			}
-
-			children, err := file.Children()
-			if err != nil {
-				panic(err)
-			}
-
-			files := make([]map[string]interface{}, len(children))[0:0]
-			for name, child := range children {
-				if fs.IsDotFile(child.Path) {
-					continue // Hide dotfiles
-				}
-				isUnlocked, err := authenticator.IsUnlocked(child, req)
 				if err != nil {
 					log.Println(err)
-					isUnlocked = false
+					http.NotFound(w, r)
+					return
 				}
+				if cachedImage == nil {
+					http.NotFound(w, r)
+					return
+				}
+				defer cachedImage.Close()
+				http.ServeContent(w, r, file.Info.Name(), modTime, cachedImage)
 
-				files = append(files, map[string]interface{}{
-					"name": name,
-					"path": child.Path,
-					"type": func() string {
-						if child.Info.IsDir() {
-							return "directory"
-						} else {
-							return fs.MimeType(child.RealPath())
-						}
-					}(),
-					"hasThumb": (isUnlocked || directoryth.HasIconThumb(child)) && thumb.FindThumber(child) != nil,
-					"hasPassword": func() bool {
-						hasPassword, err := authenticator.HasPassword(child)
-						if err != nil {
-							log.Println(err)
-							return true
-						}
-						return hasPassword
-					}(),
-					"isUnlocked": isUnlocked,
-				})
+			} else {
+				http.ServeFile(w, r, file.RealPath())
+			}
+			return
+		}
+
+		children, err := file.Children()
+		if err != nil {
+			panic(err)
+		}
+
+		files := make([]map[string]interface{}, len(children))[0:0]
+		for name, child := range children {
+			if fs.IsDotFile(child.Path) {
+				continue // Hide dotfiles
+			}
+			isUnlocked, err := web.authenticator.IsUnlocked(child, r)
+			if err != nil {
+				log.Println(err)
+				isUnlocked = false
 			}
 
-			args := baseTeplateArgs()
-			args["files"] = files
-			args["fs"] = webfs
-			args["path"] = file.Path
-			args["title"] = path.Base(file.Path)
-			if err := getPageTemplate("main.html").Execute(res, args); err != nil {
-				panic(err)
-			}
+			files = append(files, map[string]interface{}{
+				"name": name,
+				"path": child.Path,
+				"type": func() string {
+					if child.Info.IsDir() {
+						return "directory"
+					} else {
+						return fs.MimeType(child.RealPath())
+					}
+				}(),
+				"hasThumb": (isUnlocked || directoryth.HasIconThumb(child)) && thumb.FindThumber(child) != nil,
+				"hasPassword": func() bool {
+					hasPassword, err := web.authenticator.HasPassword(child)
+					if err != nil {
+						log.Println(err)
+						return true
+					}
+					return hasPassword
+				}(),
+				"isUnlocked": isUnlocked,
+			})
 		}
 
-		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
-		if err != nil {
+		args := baseTeplateArgs()
+		args["files"] = files
+		args["fs"] = web.fs
+		args["path"] = file.Path
+		args["title"] = filepath.Base(file.Path)
+		if err := getPageTemplate("main.html").Execute(w, args); err != nil {
 			panic(err)
 		}
-		if file == nil || fs.IsDotFile(file.Path) {
-			http.NotFound(res, req)
-			return
-		}
-
-		renderFile(file)
 	}
+
+	path := filepath.Clean("/" + chi.URLParam(r, "*"))
+	file, err := web.fs.Find(path)
+	if err != nil {
+		panic(err)
+	}
+	if file == nil || fs.IsDotFile(file.Path) {
+		http.NotFound(w, r)
+		return
+	}
+
+	renderFile(file)
 }
 
-func htFsThumb(webfs *fs.Filesystem, thumbCache fs.Cache) func(w http.ResponseWriter, req *http.Request) {
-	return func(res http.ResponseWriter, req *http.Request) {
-		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
-		if err != nil {
-			panic(err)
-		}
-
-		if file == nil || fs.IsDotFile(file.Path) {
-			http.NotFound(res, req)
-			return
-		}
-
-		if auth, err := authenticator.IsUnlocked(file, req); err != nil {
-			panic(err)
-		} else if !auth && !directoryth.HasIconThumb(file) {
-			http.Error(res, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		cachedThumb, modTime, err := thumb.ThumbFile(thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT)
-		if err != nil {
-			log.Println(err)
-			http.NotFound(res, req)
-			return
-		}
-		if cachedThumb == nil {
-			http.NotFound(res, req)
-			return
-		}
-		defer cachedThumb.Close()
-
-		res.Header().Set("Content-Type", "image/jpeg")
-		http.ServeContent(res, req, file.Info.Name(), modTime, cachedThumb)
+func (web *Web) thumb(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimSuffix(filepath.Clean("/"+chi.URLParam(r, "*")), ".jpg")
+	file, err := web.fs.Find(path)
+	if err != nil {
+		panic(err)
 	}
+
+	if file == nil || fs.IsDotFile(file.Path) {
+		http.NotFound(w, r)
+		return
+	}
+
+	if auth, err := web.authenticator.IsUnlocked(file, r); err != nil {
+		panic(err)
+	} else if !auth && !directoryth.HasIconThumb(file) {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	cachedThumb, modTime, err := thumb.ThumbFile(web.thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT)
+	if err != nil {
+		log.Println(err)
+		http.NotFound(w, r)
+		return
+	}
+	if cachedThumb == nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer cachedThumb.Close()
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	http.ServeContent(w, r, file.Info.Name(), modTime, cachedThumb)
 }
 
-func htFsGet(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
-	return func(res http.ResponseWriter, req *http.Request) {
-		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
-		if err != nil {
-			panic(err)
-		}
-		if file == nil || fs.IsDotFile(file.Path) {
-			http.NotFound(res, req)
-			return
-		}
-
-		if auth, err := authenticator.Authenticate(file, res, req); err != nil {
-			panic(err)
-		} else if !auth {
-			res.Write([]byte("Unauthorized"))
-			return
-		}
-
-		http.ServeFile(res, req, file.RealPath())
+func (web *Web) get(w http.ResponseWriter, r *http.Request) {
+	path := filepath.Clean("/" + chi.URLParam(r, "*"))
+	file, err := web.fs.Find(path)
+	if err != nil {
+		panic(err)
 	}
+	if file == nil || fs.IsDotFile(file.Path) {
+		http.NotFound(w, r)
+		return
+	}
+
+	if auth, err := web.authenticator.Authenticate(file, w, r); err != nil {
+		panic(err)
+	} else if !auth {
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	http.ServeFile(w, r, file.RealPath())
 }
 
-func htFsDownload(webfs *fs.Filesystem) func(res http.ResponseWriter, req *http.Request) {
-	return func(res http.ResponseWriter, req *http.Request) {
-		file, err := webfs.Find(path.Clean("/" + mux.Vars(req)["path"]))
-		if err != nil {
-			panic(err)
-		}
+func (web *Web) download(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimSuffix(filepath.Clean("/"+chi.URLParam(r, "*")), ".zip")
+	file, err := web.fs.Find(path)
+	if err != nil {
+		panic(err)
+	}
 
-		if file == nil || fs.IsDotFile(file.Path) {
-			http.NotFound(res, req)
-			return
-		}
+	if file == nil || fs.IsDotFile(file.Path) {
+		http.NotFound(w, r)
+		return
+	}
 
-		res.Header().Set("Content-Type", "application/zip")
-		if file.Path == "/" {
-			res.Header().Set("Content-Disposition", "attachment; filename=\"webfs.zip\"")
-		}
+	w.Header().Set("Content-Type", "application/zip")
+	if file.Path == "/" {
+		w.Header().Set("Content-Disposition", "attachment; filename=\"webfs.zip\"")
+	}
 
-		filter := func(file *fs.File) (bool, error) {
-			if fs.IsDotFile(file.Path) {
-				return false, nil
-			}
-			return authenticator.IsUnlocked(file, req)
+	filter := func(file *fs.File) (bool, error) {
+		if fs.IsDotFile(file.Path) {
+			return false, nil
 		}
-		if err := fs.ZipTreeFilter(file, filter, res); err != nil {
-			panic(err)
-		}
+		return web.authenticator.IsUnlocked(file, r)
+	}
+	if err := fs.ZipTreeFilter(file, filter, w); err != nil {
+		panic(err)
 	}
 }
 
