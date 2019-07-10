@@ -25,15 +25,15 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nfnt/resize"
 
-	"github.com/polyfloyd/webfs/src/assets"
-	"github.com/polyfloyd/webfs/src/fs"
-	"github.com/polyfloyd/webfs/src/fs/filecache"
-	"github.com/polyfloyd/webfs/src/fs/memcache"
-	"github.com/polyfloyd/webfs/src/thumb"
-	directoryth "github.com/polyfloyd/webfs/src/thumb/directory"
-	_ "github.com/polyfloyd/webfs/src/thumb/image"
-	_ "github.com/polyfloyd/webfs/src/thumb/vector"
-	_ "github.com/polyfloyd/webfs/src/thumb/video"
+	"webfs/src/assets"
+	"webfs/src/fs"
+	"webfs/src/fs/filecache"
+	"webfs/src/fs/memcache"
+	"webfs/src/thumb"
+	directoryth "webfs/src/thumb/directory"
+	_ "webfs/src/thumb/image"
+	_ "webfs/src/thumb/vector"
+	_ "webfs/src/thumb/video"
 )
 
 const (

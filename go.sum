@@ -17,6 +17,8 @@ github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 h1:zYyBkD/k9seD2A7fsi6
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646/go.mod h1:jpp1/29i3P1S/RLdc7JQKbRpFeM1dOBd8T9ki5s+AY8=
 github.com/polyfloyd/webfs v0.0.0-20180901190001-18ac33f8f9f5 h1:1ZqzOStM/4EsMKvmsYVyHBZsgtXkKW54T9I7C4NRvfU=
 github.com/polyfloyd/webfs v0.0.0-20180901190001-18ac33f8f9f5/go.mod h1:3SHTOmigwARJGDKCSiQLIpQYeqVmlLbLH3Y60vnhbyM=
+github.com/polyfloyd/webfs v0.0.0-20190111172038-d62b7bfb3623 h1:X268Ze/xjyZjHWSfePFShAyS8n4IAkbEYCfHO2HeGXw=
+github.com/polyfloyd/webfs v0.0.0-20190111172038-d62b7bfb3623/go.mod h1:qWeysrCyMyyvR3+L84HF3xVGi0JZgKG4NuegiTt/dKE=
 github.com/spf13/pflag v1.0.3 h1:zPAT6CGy6wXeQ7NtTnaTerfKOsV6V6F8agHXFiazDkg=
 github.com/spf13/pflag v1.0.3/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/tdewolff/minify/v2 v2.3.8 h1:Eyv23Tu+Rb5Q2vyxmvzUgtHetgneqAsaGv3950s1EeA=

@@ -7,9 +7,9 @@ import (
 	"log"
 	"math/rand"
 
-	"github.com/polyfloyd/webfs/src/fs"
-	"github.com/polyfloyd/webfs/src/thumb"
-	imageth "github.com/polyfloyd/webfs/src/thumb/image"
+	"webfs/src/fs"
+	"webfs/src/thumb"
+	imageth "webfs/src/thumb/image"
 )
 
 var iconNames = []string{

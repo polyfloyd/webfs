@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/polyfloyd/webfs/src/fs"
+	"webfs/src/fs"
 )
 
 // A cache using the filesystem as storage.
