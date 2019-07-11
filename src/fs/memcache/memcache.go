@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
@@ -24,9 +25,9 @@ func NewCache() *MemCache {
 	}
 }
 
-func (cache *MemCache) Get(file *fs.File, instance string) (fs.ReadSeekCloser, time.Time, error) {
+func (cache *MemCache) Get(filename string, instance string) (fs.ReadSeekCloser, time.Time, error) {
 	cache.lock.RLock()
-	cachedFile, ok := cache.store[cacheKey(file, instance)]
+	cachedFile, ok := cache.store[cacheKey(filename, instance)]
 	cache.lock.RUnlock()
 	if !ok {
 		return nil, time.Time{}, nil
@@ -41,14 +42,19 @@ func (cache *MemCache) Get(file *fs.File, instance string) (fs.ReadSeekCloser, t
 	}, cachedFile.modTime, nil
 }
 
-func (cache *MemCache) Put(file *fs.File, instance string) (io.WriteCloser, error) {
-	cachedFile := &cachedFile{modTime: file.Info.ModTime()}
+func (cache *MemCache) Put(filename string, instance string) (io.WriteCloser, error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	cachedFile := &cachedFile{modTime: info.ModTime()}
 	// Lock now so we don't cause any race conditions with Get(). The lock is
 	// released by the call to Close() of the returned writer.
 	cachedFile.lock.Lock()
 
 	cache.lock.Lock()
-	cache.store[cacheKey(file, instance)] = cachedFile
+	cache.store[cacheKey(filename, instance)] = cachedFile
 	cache.lock.Unlock()
 
 	return &cachedFileWriter{
@@ -57,9 +63,9 @@ func (cache *MemCache) Put(file *fs.File, instance string) (io.WriteCloser, erro
 	}, nil
 }
 
-func (cache *MemCache) Destroy(file *fs.File, instance string) error {
+func (cache *MemCache) Destroy(filename string, instance string) error {
 	cache.lock.Lock()
-	key := cacheKey(file, instance)
+	key := cacheKey(filename, instance)
 
 	if cth, ok := cache.store[key]; ok {
 		cth.lock.Lock()
@@ -77,8 +83,8 @@ type cachedFile struct {
 	lock    sync.RWMutex
 }
 
-func cacheKey(file *fs.File, instance string) string {
-	return fmt.Sprintf("%v-%v", file.RealPath(), instance)
+func cacheKey(filename string, instance string) string {
+	return fmt.Sprintf("%v-%v", filename, instance)
 }
 
 type cachedFileReader struct {

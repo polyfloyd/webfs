@@ -16,10 +16,10 @@ var thumbers []Thumber
 type Thumber interface {
 	// Checks wether the thumber is capable of creating a thumbnail of the
 	// specified file.
-	Accepts(file *fs.File) bool
+	Accepts(filename string) (bool, error)
 
 	// Creates a thumbnail with the specified dimensions.
-	Thumb(file *fs.File, w, h int) (image.Image, error)
+	Thumb(filename string, w, h int) (image.Image, error)
 }
 
 func RegisterThumber(thumber Thumber) {
@@ -31,23 +31,28 @@ func RegisterThumber(thumber Thumber) {
 //
 // This function attempts to determine the type using the filename and falls
 // back to http.DetectContentType() if that does not work.
-func AcceptMimes(file *fs.File, mimes ...string) bool {
-	fileMime := fs.MimeType(file.RealPath())
+func AcceptMimes(filename string, mimes ...string) (bool, error) {
+	fileMime, err := fs.MimeType(filename)
+	if err != nil {
+		return false, err
+	}
 	for _, mimetype := range mimes {
 		if fileMime == mimetype {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func FindThumber(file *fs.File) Thumber {
+func FindThumber(filename string) (Thumber, error) {
 	for _, th := range thumbers {
-		if th.Accepts(file) {
-			return th
+		if ok, err := th.Accepts(filename); err != nil {
+			return nil, err
+		} else if ok {
+			return th, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // This is the preferred way of creating a thumbnail. This function will manage
@@ -55,13 +60,15 @@ func FindThumber(file *fs.File) Thumber {
 // modification time changes.
 //
 // The thumbnail is exposed as a JPEG image.
-func ThumbFile(thumbCache fs.Cache, file *fs.File, width, height int) (fs.ReadSeekCloser, time.Time, error) {
-	return fs.CacheFile(thumbCache, file, cacheInstance(width, height), func(file *fs.File, wr io.Writer) error {
-		th := FindThumber(file)
-		if th == nil {
-			return fmt.Errorf("No thumber to generate thumbnail for %q", file.Path)
+func ThumbFile(thumbCache fs.Cache, filename string, width, height int) (fs.ReadSeekCloser, time.Time, error) {
+	return fs.CacheFile(thumbCache, filename, cacheInstance(width, height), func(filename string, wr io.Writer) error {
+		th, err := FindThumber(filename)
+		if err != nil {
+			return err
+		} else if th == nil {
+			return fmt.Errorf("No thumber to generate thumbnail for %q", filename)
 		}
-		img, err := th.Thumb(file, width, height)
+		img, err := th.Thumb(filename, width, height)
 		if err != nil {
 			return err
 		}

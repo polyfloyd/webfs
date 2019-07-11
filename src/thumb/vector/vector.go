@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"strconv"
 
-	"webfs/src/fs"
 	"webfs/src/thumb"
 )
 
@@ -25,15 +24,15 @@ func init() {
 
 type VectorThumber struct{}
 
-func (VectorThumber) Accepts(file *fs.File) bool {
-	return thumb.AcceptMimes(file,
+func (VectorThumber) Accepts(filename string) (bool, error) {
+	return thumb.AcceptMimes(filename,
 		"application/pdf",
 		"application/postscript",
 		"image/svg+xml",
 	)
 }
 
-func (VectorThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
+func (VectorThumber) Thumb(filename string, w, h int) (image.Image, error) {
 	tmp, err := ioutil.TempFile("", "webfs_vecthumb_")
 	if err != nil {
 		return nil, err
@@ -43,7 +42,7 @@ func (VectorThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 
 	cmd := exec.Command(
 		"inkscape",
-		"--file", file.RealPath(),
+		"--file", filename,
 		"--export-png", tmp.Name(),
 		"--export-background", "white",
 		"--export-width", strconv.Itoa(w),

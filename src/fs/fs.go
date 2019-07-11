@@ -123,20 +123,20 @@ func IsDotFile(filename string) bool {
 	return path.Base(filename)[0] == '.'
 }
 
-func MimeType(filename string) string {
+func MimeType(filename string) (string, error) {
 	fileMime := mime.TypeByExtension(path.Ext(filename))
 	if fileMime != "" && fileMime != "application/octet-stream" {
-		return fileMime
+		return fileMime, nil
 	}
 
 	fd, err := os.Open(filename)
 	if err != nil {
-		return "application/octet-stream"
+		return "", err
 	}
 	defer fd.Close()
 	var buf [512]byte
 	n, _ := fd.Read(buf[:])
-	return http.DetectContentType(buf[:n])
+	return http.DetectContentType(buf[:n]), nil
 }
 
 func ResolveHome(p string) string {

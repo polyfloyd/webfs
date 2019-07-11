@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"log"
 	"math/rand"
+	"os"
+	"path/filepath"
 
-	"webfs/src/fs"
 	"webfs/src/thumb"
 	imageth "webfs/src/thumb/image"
 )
@@ -24,55 +24,83 @@ func init() {
 
 type DirectoryThumber struct{}
 
-func (DirectoryThumber) Accepts(file *fs.File) bool {
-	return file.Info.IsDir()
-}
-
-func (DirectoryThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
-	if icon, err := IconThumb(file, w, h); err == nil {
-		return icon, err
-	}
-	return MosaicThumb(file, w, h)
-}
-
-func HasIconThumb(file *fs.File) bool {
-	children, err := file.Children()
+func (DirectoryThumber) Accepts(filename string) (bool, error) {
+	stat, err := os.Stat(filename)
 	if err != nil {
-		return false
+		return false, err
 	}
-	for _, iconName := range iconNames {
-		if _, ok := children[iconName]; ok {
-			return true
+	return stat.IsDir(), nil
+}
+
+func (DirectoryThumber) Thumb(filename string, w, h int) (image.Image, error) {
+	if icon, err := IconThumb(filename, w, h); err == nil {
+		return icon, nil
+	}
+	return MosaicThumb(filename, w, h)
+}
+
+func HasIconThumb(filename string) (bool, error) {
+	fd, err := os.Open(filename)
+	if err != nil {
+		return false, err
+	}
+	defer fd.Close()
+	files, err := fd.Readdir(-1)
+	if err != nil {
+		return false, err
+	}
+
+	for _, f := range files {
+		for _, iconName := range iconNames {
+			if f.Name() == iconName {
+				return true, nil
+			}
 		}
 	}
-	return false
+	return false, nil
 }
 
-func IconThumb(file *fs.File, w, h int) (image.Image, error) {
-	children, err := file.Children()
+func IconThumb(filename string, w, h int) (image.Image, error) {
+	fd, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+	files, err := fd.Readdir(-1)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, iconName := range iconNames {
-		if icon, ok := children[iconName]; ok {
-			return imageth.ImageThumber{}.Thumb(icon, w, h)
+	for _, f := range files {
+		for _, iconName := range iconNames {
+			if f.Name() == iconName {
+				return imageth.ImageThumber{}.
+					Thumb(filepath.Join(filename, f.Name()), w, h)
+			}
 		}
 	}
-
 	return nil, fmt.Errorf("Directory does not contain an icon file")
 }
 
-func MosaicThumb(file *fs.File, w, h int) (image.Image, error) {
-	children, err := file.Children()
+func MosaicThumb(filename string, w, h int) (image.Image, error) {
+	fd, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+	files, err := fd.Readdir(-1)
 	if err != nil {
 		return nil, err
 	}
 
-	thumbableFiles := make([]*fs.File, 50)[0:0]
-	for _, file := range children {
-		if thumb.FindThumber(file) != nil {
-			thumbableFiles = append(thumbableFiles, file)
+	thumbableFiles := make([]string, 50)[0:0]
+	for _, f := range files {
+		th, err := thumb.FindThumber(filepath.Join(filename, f.Name()))
+		if err != nil {
+			return nil, err
+		}
+		if th != nil {
+			thumbableFiles = append(thumbableFiles, filepath.Join(filename, f.Name()))
 		}
 		if len(thumbableFiles) == cap(thumbableFiles) {
 			break
@@ -115,11 +143,13 @@ func MosaicThumb(file *fs.File, w, h int) (image.Image, error) {
 			cellFile := thumbableFiles[n]
 			thumbableFiles = append(thumbableFiles[:n], thumbableFiles[n+1:]...)
 
-			cell, err := thumb.FindThumber(cellFile).Thumb(cellFile, cellW, cellH)
+			th, err := thumb.FindThumber(cellFile)
 			if err != nil {
-				log.Println("Error while drawing cell:", err)
-				y-- // Retry
-				continue
+				return nil, fmt.Errorf("Error while drawing cell:", err)
+			}
+			cell, err := th.Thumb(cellFile, cellW, cellH)
+			if err != nil {
+				return nil, fmt.Errorf("Error while drawing cell:", err)
 			}
 
 			draw.Draw(dst, image.Rectangle{

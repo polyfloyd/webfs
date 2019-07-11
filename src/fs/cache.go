@@ -3,6 +3,7 @@ package fs
 import (
 	"bytes"
 	"io"
+	"os"
 	"time"
 )
 
@@ -24,40 +25,45 @@ type Cache interface {
 	//
 	// The returned time is the creation time of the file, always later
 	// than the modifacation time of the file on disk.
-	Get(file *File, instance string) (ReadSeekCloser, time.Time, error)
+	Get(filename string, instance string) (ReadSeekCloser, time.Time, error)
 
 	// Stores a file by providing the writer the instance should be written
 	// to.
-	Put(file *File, instance string) (io.WriteCloser, error)
+	Put(filename string, instance string) (io.WriteCloser, error)
 
 	// Removes a cached file. If the instance identifier is "" all instances
 	// are removed. This function is a no-op if no file exists.
-	Destroy(file *File, instance string) error
+	Destroy(filename string, instance string) error
 }
 
-func CacheFile(cache Cache, file *File, instance string, getContents func(*File, io.Writer) error) (ReadSeekCloser, time.Time, error) {
-	cached, modTime, err := cache.Get(file, instance)
+func CacheFile(cache Cache, filename, instance string, getContents func(string, io.Writer) error) (ReadSeekCloser, time.Time, error) {
+	cached, modTime, err := cache.Get(filename, instance)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
 
-	if cached == nil || file.Info.ModTime().After(modTime) {
-		cacheWriter, err := cache.Put(file, instance)
+	info, err := os.Stat(filename)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	if cached == nil || info.ModTime().After(modTime) {
+		cacheWriter, err := cache.Put(filename, instance)
 		if err != nil {
-			cache.Destroy(file, instance)
+			cache.Destroy(filename, instance)
 			return nil, time.Time{}, err
 		}
 
 		buf := &bufSeekCloser{}
-		if err := getContents(file, io.MultiWriter(&buf.buf, cacheWriter)); err != nil {
+		if err := getContents(filename, io.MultiWriter(&buf.buf, cacheWriter)); err != nil {
 			cacheWriter.Close()
-			cache.Destroy(file, instance)
+			cache.Destroy(filename, instance)
 			return nil, time.Time{}, err
 		}
 		cacheWriter.Close()
 
 		buf.Reader = bytes.NewReader(buf.buf.Bytes())
-		return buf, file.Info.ModTime(), nil
+		return buf, info.ModTime(), nil
 	}
 	return cached, modTime, nil
 }

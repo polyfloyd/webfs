@@ -206,7 +206,7 @@ func pregenerateThumbnails(filesystem *fs.Filesystem, thumbCache fs.Cache) {
 			defer wg.Done()
 			for file := range fileStream {
 				log.Println(file.Path)
-				if thumb, _, err := thumb.ThumbFile(thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT); err != nil {
+				if thumb, _, err := thumb.ThumbFile(thumbCache, file.RealPath(), THUMB_WIDTH, THUMB_HEIGHT); err != nil {
 					log.Println(err)
 				} else if thumb != nil {
 					thumb.Close()
@@ -281,11 +281,13 @@ func (web *Web) view(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !file.Info.IsDir() {
-			if thumb.AcceptMimes(file, "image/jpeg", "image/png") {
+			if ok, err := thumb.AcceptMimes(file.RealPath(), "image/jpeg", "image/png"); err != nil {
+				panic(err)
+			} else if ok {
 				// Scale down the image to reduce transfer time to the client.
 				const WIDTH, HEIGHT = 1366, 768
-				cachedImage, modTime, err := fs.CacheFile(web.thumbCache, file, "view", func(file *fs.File, wr io.Writer) error {
-					fd, err := os.Open(file.RealPath())
+				cachedImage, modTime, err := fs.CacheFile(web.thumbCache, file.RealPath(), "view", func(filename string, wr io.Writer) error {
+					fd, err := os.Open(filename)
 					if err != nil {
 						return err
 					}
@@ -339,10 +341,21 @@ func (web *Web) view(w http.ResponseWriter, r *http.Request) {
 					if child.Info.IsDir() {
 						return "directory"
 					} else {
-						return fs.MimeType(child.RealPath())
+						mime, err := fs.MimeType(child.RealPath())
+						if err != nil {
+							panic(err)
+						}
+						return mime
 					}
 				}(),
-				"hasThumb": (isUnlocked || directoryth.HasIconThumb(child)) && thumb.FindThumber(child) != nil,
+				"hasThumb": func() bool {
+					if !isUnlocked {
+						ok, _ := directoryth.HasIconThumb(child.RealPath())
+						return ok
+					}
+					th, _ := thumb.FindThumber(child.RealPath())
+					return th != nil
+				}(),
 				"hasPassword": func() bool {
 					hasPassword, err := web.authenticator.HasPassword(child)
 					if err != nil {
@@ -392,12 +405,16 @@ func (web *Web) thumb(w http.ResponseWriter, r *http.Request) {
 
 	if auth, err := web.authenticator.IsUnlocked(file, r); err != nil {
 		panic(err)
-	} else if !auth && !directoryth.HasIconThumb(file) {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
+	} else if !auth {
+		if ok, err := directoryth.HasIconThumb(file.RealPath()); err != nil {
+			panic(err)
+		} else if !ok {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
-	cachedThumb, modTime, err := thumb.ThumbFile(web.thumbCache, file, THUMB_WIDTH, THUMB_HEIGHT)
+	cachedThumb, modTime, err := thumb.ThumbFile(web.thumbCache, file.RealPath(), THUMB_WIDTH, THUMB_HEIGHT)
 	if err != nil {
 		log.Println(err)
 		http.NotFound(w, r)

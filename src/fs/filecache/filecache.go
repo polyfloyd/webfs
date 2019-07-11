@@ -52,8 +52,8 @@ func NewCache(dir string, perm os.FileMode) (*ThumbFileCache, error) {
 	return cache, nil
 }
 
-func (cache *ThumbFileCache) Get(file *fs.File, instance string) (fs.ReadSeekCloser, time.Time, error) {
-	cacheFile := cache.filename(file, instance)
+func (cache *ThumbFileCache) Get(filename string, instance string) (fs.ReadSeekCloser, time.Time, error) {
+	cacheFile := cache.filename(filename, instance)
 
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
@@ -81,8 +81,8 @@ func (cache *ThumbFileCache) Get(file *fs.File, instance string) (fs.ReadSeekClo
 	}, info.ModTime(), nil
 }
 
-func (cache *ThumbFileCache) Put(file *fs.File, instance string) (io.WriteCloser, error) {
-	cacheFile := cache.filename(file, instance)
+func (cache *ThumbFileCache) Put(filename string, instance string) (io.WriteCloser, error) {
+	cacheFile := cache.filename(filename, instance)
 
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
@@ -101,8 +101,8 @@ func (cache *ThumbFileCache) Put(file *fs.File, instance string) (io.WriteCloser
 	}, nil
 }
 
-func (cache *ThumbFileCache) Destroy(file *fs.File, instance string) error {
-	cacheFile := cache.filename(file, instance)
+func (cache *ThumbFileCache) Destroy(filename string, instance string) error {
+	cacheFile := cache.filename(filename, instance)
 
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
@@ -115,8 +115,8 @@ func (cache *ThumbFileCache) Destroy(file *fs.File, instance string) error {
 	return os.Remove(cacheFile)
 }
 
-func (cache *ThumbFileCache) filename(file *fs.File, instance string) string {
-	return path.Join(cache.dir, fmt.Sprintf("%x-%v", sha1.Sum([]byte(file.Path)), instance))
+func (cache *ThumbFileCache) filename(filename string, instance string) string {
+	return path.Join(cache.dir, fmt.Sprintf("%x-%v", sha1.Sum([]byte(filename)), instance))
 }
 
 type fileReleaser struct {

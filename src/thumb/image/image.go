@@ -10,7 +10,6 @@ import (
 
 	"github.com/nfnt/resize"
 
-	"webfs/src/fs"
 	"webfs/src/thumb"
 )
 
@@ -20,12 +19,12 @@ func init() {
 
 type ImageThumber struct{}
 
-func (ImageThumber) Accepts(file *fs.File) bool {
-	return thumb.AcceptMimes(file, "image/jpeg", "image/png", "image/gif")
+func (ImageThumber) Accepts(filename string) (bool, error) {
+	return thumb.AcceptMimes(filename, "image/jpeg", "image/png", "image/gif")
 }
 
-func (ImageThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
-	fd, err := os.Open(file.RealPath())
+func (ImageThumber) Thumb(filename string, w, h int) (image.Image, error) {
+	fd, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}

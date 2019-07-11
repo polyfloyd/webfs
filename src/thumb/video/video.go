@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"webfs/src/fs"
 	"webfs/src/thumb"
 )
 
@@ -76,19 +75,19 @@ func ffmpegDuration(dur time.Duration) string {
 
 type FFmpegThumber struct{}
 
-func (FFmpegThumber) Accepts(file *fs.File) bool {
-	return thumb.AcceptMimes(file, acceptMimes...)
+func (FFmpegThumber) Accepts(filename string) (bool, error) {
+	return thumb.AcceptMimes(filename, acceptMimes...)
 }
 
-func (vt FFmpegThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
-	duration, err := vt.videoDuration(file)
+func (vt FFmpegThumber) Thumb(filename string, w, h int) (image.Image, error) {
+	duration, err := vt.videoDuration(filename)
 	if err != nil {
 		duration = time.Second // Take a guess and hope the video is longer than this.
 	}
 
 	cmd := exec.Command("ffmpeg",
 		"-ss", ffmpegDuration(duration/2),
-		"-i", file.RealPath(),
+		"-i", filename,
 		"-vframes", "1",
 		"-f", "image2",
 		"-pix_fmt", "yuv420p",
@@ -114,12 +113,12 @@ func (vt FFmpegThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
 	return image, nil
 }
 
-func (FFmpegThumber) videoDuration(file *fs.File) (time.Duration, error) {
+func (FFmpegThumber) videoDuration(filename string) (time.Duration, error) {
 	cmd := exec.Command("ffprobe",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1",
-		file.RealPath(),
+		filename,
 	)
 
 	out, err := cmd.Output()
@@ -140,15 +139,15 @@ func (FFmpegThumber) supported() error {
 
 type AvconvThumber struct{}
 
-func (AvconvThumber) Accepts(file *fs.File) bool {
-	return thumb.AcceptMimes(file, acceptMimes...)
+func (AvconvThumber) Accepts(filename string) (bool, error) {
+	return thumb.AcceptMimes(filename, acceptMimes...)
 }
 
-func (vt AvconvThumber) Thumb(file *fs.File, w, h int) (image.Image, error) {
+func (vt AvconvThumber) Thumb(filename string, w, h int) (image.Image, error) {
 	// Look, I don't want to deal with figuring out how to measure the length
 	// of a video, avconv is deprecated anyway.
 	cmd := exec.Command("avconv",
-		"-i", file.RealPath(),
+		"-i", filename,
 		"-vframes", "1",
 		"-r", "1",
 		"-an",
