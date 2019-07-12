@@ -1,4 +1,4 @@
-package fs
+package cache
 
 import (
 	"bytes"

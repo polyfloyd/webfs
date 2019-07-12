@@ -25,9 +25,10 @@ import (
 	"github.com/nfnt/resize"
 
 	"webfs/src/assets"
+	"webfs/src/cache"
+	"webfs/src/cache/filecache"
+	"webfs/src/cache/memcache"
 	"webfs/src/fs"
-	"webfs/src/fs/filecache"
-	"webfs/src/fs/memcache"
 	"webfs/src/thumb"
 	directoryth "webfs/src/thumb/directory"
 	_ "webfs/src/thumb/image"
@@ -99,10 +100,10 @@ func main() {
 
 	staticAssets = genStaticAssets()
 
-	var thumbCache fs.Cache
+	var thumbCache cache.Cache
 	var sessionBaseDir string
 	if *cacheDir != "" {
-		cache, err := filecache.NewCache(filepath.Join(*cacheDir, "thumbs"), 0)
+		cache, err := filecache.NewCache(fs.ResolveHome(filepath.Join(*cacheDir, "thumbs")), 0)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -175,7 +176,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func pregenerateThumbnails(filesystem *fs.Filesystem, thumbCache fs.Cache) {
+func pregenerateThumbnails(filesystem *fs.Filesystem, thumbCache cache.Cache) {
 	numRunners := runtime.NumCPU() / 2
 	if numRunners <= 0 {
 		numRunners = 1
@@ -261,7 +262,7 @@ func genStaticAssets() map[string][]string {
 type Web struct {
 	fs            *fs.Filesystem
 	authenticator Authenticator
-	thumbCache    fs.Cache
+	thumbCache    cache.Cache
 }
 
 func (web *Web) view(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +287,7 @@ func (web *Web) view(w http.ResponseWriter, r *http.Request) {
 			} else if ok {
 				// Scale down the image to reduce transfer time to the client.
 				const WIDTH, HEIGHT = 1366, 768
-				cachedImage, modTime, err := fs.CacheFile(web.thumbCache, file.RealPath(), "view", func(filename string, wr io.Writer) error {
+				cachedImage, modTime, err := cache.CacheFile(web.thumbCache, file.RealPath(), "view", func(filename string, wr io.Writer) error {
 					fd, err := os.Open(filename)
 					if err != nil {
 						return err

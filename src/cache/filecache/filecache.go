@@ -8,8 +8,7 @@ import (
 	"path"
 	"sync"
 	"time"
-
-	"webfs/src/fs"
+	"webfs/src/cache"
 )
 
 // A cache using the filesystem as storage.
@@ -24,7 +23,6 @@ func NewCache(dir string, perm os.FileMode) (*ThumbFileCache, error) {
 	if perm == 0 {
 		perm = 0700 | os.ModeTemporary
 	}
-	dir = fs.ResolveHome(dir)
 
 	if err := os.MkdirAll(dir, perm); err != nil {
 		return nil, err
@@ -52,7 +50,7 @@ func NewCache(dir string, perm os.FileMode) (*ThumbFileCache, error) {
 	return cache, nil
 }
 
-func (cache *ThumbFileCache) Get(filename string, instance string) (fs.ReadSeekCloser, time.Time, error) {
+func (cache *ThumbFileCache) Get(filename string, instance string) (cache.ReadSeekCloser, time.Time, error) {
 	cacheFile := cache.filename(filename, instance)
 
 	cache.lock.RLock()

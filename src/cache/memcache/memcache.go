@@ -7,8 +7,7 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"webfs/src/fs"
+	"webfs/src/cache"
 )
 
 // An implementation of a file Cache storing all its files in sytem memory.
@@ -25,7 +24,7 @@ func NewCache() *MemCache {
 	}
 }
 
-func (cache *MemCache) Get(filename string, instance string) (fs.ReadSeekCloser, time.Time, error) {
+func (cache *MemCache) Get(filename string, instance string) (cache.ReadSeekCloser, time.Time, error) {
 	cache.lock.RLock()
 	cachedFile, ok := cache.store[cacheKey(filename, instance)]
 	cache.lock.RUnlock()

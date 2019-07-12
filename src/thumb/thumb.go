@@ -11,7 +11,7 @@ import (
 	"path"
 	"time"
 
-	"webfs/src/fs"
+	"webfs/src/cache"
 )
 
 var thumbers []Thumber
@@ -48,8 +48,8 @@ func FindThumber(filename string) (Thumber, error) {
 // modification time changes.
 //
 // The thumbnail is exposed as a JPEG image.
-func ThumbFile(thumbCache fs.Cache, filename string, width, height int) (fs.ReadSeekCloser, time.Time, error) {
-	return fs.CacheFile(thumbCache, filename, cacheInstance(width, height), func(filename string, wr io.Writer) error {
+func ThumbFile(thumbCache cache.Cache, filename string, width, height int) (cache.ReadSeekCloser, time.Time, error) {
+	return cache.CacheFile(thumbCache, filename, cacheInstance(width, height), func(filename string, wr io.Writer) error {
 		th, err := FindThumber(filename)
 		if err != nil {
 			return err
