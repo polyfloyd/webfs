@@ -13,53 +13,20 @@ import (
 	"webfs/src/thumb"
 )
 
-var acceptMimes = []string{
-	"video/3gpp",
-	"video/annodex",
-	"video/dl",
-	"video/dv",
-	"video/fli",
-	"video/gl",
-	"video/mpeg",
-	"video/MP2T",
-	"video/mp4",
-	"video/quicktime",
-	"video/mp4v-es",
-	"video/ogg",
-	"video/parityfec",
-	"video/pointer",
-	"video/webm",
-	"video/vnd.fvt",
-	"video/vnd.motorola.video",
-	"video/vnd.motorola.videop",
-	"video/vnd.mpegurl",
-	"video/vnd.mts",
-	"video/vnd.nokia.interleaved-multimedia",
-	"video/vnd.vivo",
-	"video/x-flv",
-	"video/x-la-asf",
-	"video/x-mng",
-	"video/x-ms-asf",
-	"video/x-ms-wm",
-	"video/x-ms-wmv",
-	"video/x-ms-wmx",
-	"video/x-ms-wvx",
-	"video/x-msvideo",
-	"video/x-sgi-movie",
-	"video/x-matroska",
-}
-
 func init() {
-	ff := FFmpegThumber{}
-	if err := ff.supported(); err == nil {
-		thumb.RegisterThumber(ff)
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		log.Printf("Disabling video thumber: %v", err)
 		return
 	}
-	log.Println("Disabling video thumbers, no supported implementations")
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		log.Printf("Disabling video thumber: %v", err)
+		return
+	}
+	thumb.RegisterThumber(FFmpegThumber{})
 }
 
 func ffmpegDuration(dur time.Duration) string {
-	return fmt.Sprintf("%v:%v:%v.%v",
+	return fmt.Sprintf("%d:%d:%d.%d",
 		int64(dur/time.Hour),
 		int64((dur%time.Hour)/time.Minute),
 		int64((dur%time.Minute)/time.Second),
@@ -70,7 +37,41 @@ func ffmpegDuration(dur time.Duration) string {
 type FFmpegThumber struct{}
 
 func (FFmpegThumber) Accepts(filename string) (bool, error) {
-	return thumb.AcceptMimes(filename, acceptMimes...)
+	return thumb.AcceptMimes(filename,
+		"video/3gpp",
+		"video/annodex",
+		"video/dl",
+		"video/dv",
+		"video/fli",
+		"video/gl",
+		"video/mpeg",
+		"video/MP2T",
+		"video/mp4",
+		"video/quicktime",
+		"video/mp4v-es",
+		"video/ogg",
+		"video/parityfec",
+		"video/pointer",
+		"video/webm",
+		"video/vnd.fvt",
+		"video/vnd.motorola.video",
+		"video/vnd.motorola.videop",
+		"video/vnd.mpegurl",
+		"video/vnd.mts",
+		"video/vnd.nokia.interleaved-multimedia",
+		"video/vnd.vivo",
+		"video/x-flv",
+		"video/x-la-asf",
+		"video/x-mng",
+		"video/x-ms-asf",
+		"video/x-ms-wm",
+		"video/x-ms-wmv",
+		"video/x-ms-wmx",
+		"video/x-ms-wvx",
+		"video/x-msvideo",
+		"video/x-sgi-movie",
+		"video/x-matroska",
+	)
 }
 
 func (vt FFmpegThumber) Thumb(filename string, w, h int) (image.Image, error) {
@@ -124,9 +125,4 @@ func (FFmpegThumber) videoDuration(filename string) (time.Duration, error) {
 		return 0, err
 	}
 	return time.Duration(float64(time.Second) * f), nil
-}
-
-func (FFmpegThumber) supported() error {
-	_, err := exec.LookPath("ffmpeg")
-	return err
 }

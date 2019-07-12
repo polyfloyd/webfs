@@ -39,47 +39,41 @@ func (DirectoryThumber) Thumb(filename string, w, h int) (image.Image, error) {
 	return MosaicThumb(filename, w, h)
 }
 
-func HasIconThumb(filename string) (bool, error) {
-	fd, err := os.Open(filename)
+func iconThumbFile(dirname string) (string, error) {
+	fd, err := os.Open(dirname)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	defer fd.Close()
 	files, err := fd.Readdir(-1)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	for _, f := range files {
 		for _, iconName := range iconNames {
 			if f.Name() == iconName {
-				return true, nil
+				return filepath.Join(dirname, f.Name()), nil
 			}
 		}
 	}
-	return false, nil
+	return "", nil
+}
+
+func HasIconThumb(filename string) (bool, error) {
+	iconFile, err := iconThumbFile(filename)
+	if err != nil {
+		return false, err
+	}
+	return iconFile != "", nil
 }
 
 func IconThumb(filename string, w, h int) (image.Image, error) {
-	fd, err := os.Open(filename)
+	iconFile, err := iconThumbFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	defer fd.Close()
-	files, err := fd.Readdir(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, f := range files {
-		for _, iconName := range iconNames {
-			if f.Name() == iconName {
-				return imageth.ImageThumber{}.
-					Thumb(filepath.Join(filename, f.Name()), w, h)
-			}
-		}
-	}
-	return nil, fmt.Errorf("Directory does not contain an icon file")
+	return imageth.ImageThumber{}.Thumb(iconFile, w, h)
 }
 
 func MosaicThumb(filename string, w, h int) (image.Image, error) {
@@ -108,7 +102,7 @@ func MosaicThumb(filename string, w, h int) (image.Image, error) {
 	}
 
 	if len(thumbableFiles) == 0 {
-		return nil, fmt.Errorf("No files to create a directory thumbnail.")
+		return nil, fmt.Errorf("no files to create a directory thumbnail")
 	}
 
 	var nCellsX int
@@ -137,7 +131,7 @@ func MosaicThumb(filename string, w, h int) (image.Image, error) {
 	for x := 0; x < nCellsX; x++ {
 		for y := 0; y < nCellsY; y++ {
 			if len(thumbableFiles) == 0 {
-				return nil, fmt.Errorf("All files exhausted while trying to create a directory thumbnail.")
+				return nil, fmt.Errorf("all files exhausted while trying to create a directory thumbnail")
 			}
 			n := rand.Intn(len(thumbableFiles))
 			cellFile := thumbableFiles[n]
@@ -145,11 +139,11 @@ func MosaicThumb(filename string, w, h int) (image.Image, error) {
 
 			th, err := thumb.FindThumber(cellFile)
 			if err != nil {
-				return nil, fmt.Errorf("Error while drawing cell:", err)
+				return nil, fmt.Errorf("error while drawing cell: %v", err)
 			}
 			cell, err := th.Thumb(cellFile, cellW, cellH)
 			if err != nil {
-				return nil, fmt.Errorf("Error while drawing cell:", err)
+				return nil, fmt.Errorf("error while drawing cell: %v", err)
 			}
 
 			draw.Draw(dst, image.Rectangle{

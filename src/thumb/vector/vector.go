@@ -13,13 +13,11 @@ import (
 )
 
 func init() {
-	th := VectorThumber{}
-	if _, err := exec.LookPath("inkscape"); err == nil {
-		thumb.RegisterThumber(th)
+	if _, err := exec.LookPath("inkscape"); err != nil {
+		log.Printf("Disabling vector thumber: %v", err)
 		return
 	}
-
-	log.Println("Disabling vector thumber, inkscape not found in PATH")
+	thumb.RegisterThumber(VectorThumber{})
 }
 
 type VectorThumber struct{}

@@ -341,7 +341,7 @@ func (web *Web) view(w http.ResponseWriter, r *http.Request) {
 					if child.Info.IsDir() {
 						return "directory"
 					} else {
-						mime, err := fs.MimeType(child.RealPath())
+						mime, err := thumb.MimeType(child.RealPath())
 						if err != nil {
 							panic(err)
 						}

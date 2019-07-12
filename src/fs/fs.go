@@ -2,8 +2,6 @@ package fs
 
 import (
 	"log"
-	"mime"
-	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -121,22 +119,6 @@ func (fs *Filesystem) Find(p string) (*File, error) {
 
 func IsDotFile(filename string) bool {
 	return path.Base(filename)[0] == '.'
-}
-
-func MimeType(filename string) (string, error) {
-	fileMime := mime.TypeByExtension(path.Ext(filename))
-	if fileMime != "" && fileMime != "application/octet-stream" {
-		return fileMime, nil
-	}
-
-	fd, err := os.Open(filename)
-	if err != nil {
-		return "", err
-	}
-	defer fd.Close()
-	var buf [512]byte
-	n, _ := fd.Read(buf[:])
-	return http.DetectContentType(buf[:n]), nil
 }
 
 func ResolveHome(p string) string {

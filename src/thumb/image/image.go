@@ -20,7 +20,11 @@ func init() {
 type ImageThumber struct{}
 
 func (ImageThumber) Accepts(filename string) (bool, error) {
-	return thumb.AcceptMimes(filename, "image/jpeg", "image/png", "image/gif")
+	return thumb.AcceptMimes(filename,
+		"image/jpeg",
+		"image/png",
+		"image/gif",
+	)
 }
 
 func (ImageThumber) Thumb(filename string, w, h int) (image.Image, error) {
