@@ -15,13 +15,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/nfnt/resize"
 
 	"webfs/src/assets"
@@ -55,13 +54,7 @@ var (
 var (
 	startTime     = time.Now()
 	pageTemplates = map[string]*template.Template{}
-	staticAssets  map[string][]string
-)
-
-var (
-	urlRoot     string
-	piwikRoot   string
-	piwikSiteID int
+	staticAssets  = genStaticAssets()
 )
 
 type AssetServeHandler string
@@ -79,9 +72,9 @@ func main() {
 	log.Printf("Version: %v (%v)\n", version, build)
 
 	listenAddress := flag.String("listen", "localhost:8080", "The HTTP root of a Piwik installation, must not end with a slash")
-	flag.StringVar(&urlRoot, "urlroot", "", "The HTTP root, must not end with a slash")
-	flag.StringVar(&piwikRoot, "piwik-root", "", "The HTTP root of a Piwik installation, must not end with a slash")
-	flag.IntVar(&piwikSiteID, "piwik-site", 0, "The Piwik Site ID")
+	urlRoot := flag.String("urlroot", "", "The HTTP root, must not end with a slash")
+	piwikRoot := flag.String("piwik-root", "", "The HTTP root of a Piwik installation, must not end with a slash")
+	piwikSiteID := flag.Int("piwik-site", 0, "The Piwik Site ID")
 	pregenThumbs := flag.Bool("pregen-thumbs", false, "Generate thumbnails for every file in all configured filesystems on startup")
 	defaultCacheDir := filepath.Join(os.TempDir(), fmt.Sprintf("webfs-%d", os.Getuid()))
 	cacheDir := flag.String("cache-dir", defaultCacheDir, "The directory to store generated thumbnails. If empty, all files are kept in memory")
@@ -94,16 +87,18 @@ func main() {
 	}
 	flag.Parse()
 
-	if urlRoot == "" {
-		urlRoot = fmt.Sprintf("http://%s", *listenAddress)
+	if *urlRoot == "" {
+		*urlRoot = fmt.Sprintf("http://%s", *listenAddress)
 	}
-
-	staticAssets = genStaticAssets()
 
 	var thumbCache cache.Cache
 	var sessionBaseDir string
 	if *cacheDir != "" {
-		cache, err := filecache.NewCache(fs.ResolveHome(filepath.Join(*cacheDir, "thumbs")), 0)
+		d, err := resolveHome(filepath.Join(*cacheDir, "thumbs"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		cache, err := filecache.NewCache(d, 0)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -114,12 +109,25 @@ func main() {
 		sessionBaseDir = os.TempDir()
 	}
 
+	mount, err := resolveHome(strings.TrimSuffix(*mountPath, "/"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	filesystem, err := fs.NewFilesystem(mount, thumbCache)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	var authenticator Authenticator
 	if *noPasswd {
-		authenticator = NilAuthenticator{}
+		authenticator = NilAuthenticator{Filesystem: filesystem}
 		log.Println("Password authentication disabled")
 	} else {
-		auth, err := NewBasicAuthenticator(filepath.Join(sessionBaseDir, "sessions"))
+		d, err := resolveHome(filepath.Join(sessionBaseDir, "sessions"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		auth, err := NewBasicAuthenticator(filesystem, d)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -127,12 +135,7 @@ func main() {
 	}
 
 	r := chi.NewRouter()
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("%s %s", r.Method, r.URL.Path)
-			next.ServeHTTP(w, r)
-		})
-	})
+	r.Use(middleware.Logger)
 
 	for _, file := range assets.AssetNames() {
 		if !strings.HasPrefix(file, PUBLIC) {
@@ -142,24 +145,22 @@ func main() {
 		r.Mount(urlPath, AssetServeHandler(file))
 	}
 
-	filesystem, err := fs.NewFilesystem(strings.TrimSuffix(*mountPath, "/"))
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	web := Web{
 		fs:            filesystem,
 		thumbCache:    thumbCache,
 		authenticator: authenticator,
+		urlRoot:       *urlRoot,
+		piwikRoot:     *piwikRoot,
+		piwikSiteID:   *piwikSiteID,
 	}
 
 	r.Get("/view/*", web.view)
 	r.Get("/thumb/*", web.thumb)
-	r.Get("/get/*", web.get)
-	r.Get("/download/*", web.download)
+	r.Get("/get/*", web.download)
+	r.Get("/download/*", web.downloadZip)
 
 	if *pregenThumbs {
-		go pregenerateThumbnails(filesystem, thumbCache)
+		go filesystem.PregenerateThumbnails(THUMB_WIDTH, THUMB_HEIGHT)
 	}
 
 	log.Printf("Now accepting HTTP connections on %v", *listenAddress)
@@ -174,65 +175,6 @@ func main() {
 		WriteTimeout: 2 * time.Hour,
 	}
 	log.Fatal(server.ListenAndServe())
-}
-
-func pregenerateThumbnails(filesystem *fs.Filesystem, thumbCache cache.Cache) {
-	numRunners := runtime.NumCPU() / 2
-	if numRunners <= 0 {
-		numRunners = 1
-	}
-	log.Printf("Generating thumbnails using %v workers", numRunners)
-
-	fileStream := make(chan *fs.File)
-	go func() {
-		defer close(fileStream)
-		log.Printf("Generating thumbs")
-		filepath.Walk(filesystem.RealPath, func(path string, info os.FileInfo, err error) error {
-			if path == filesystem.RealPath || fs.IsDotFile(path) {
-				return nil
-			}
-			fileStream <- &fs.File{
-				Info: info,
-				Path: strings.TrimPrefix(path, filesystem.RealPath+"/"),
-				Fs:   filesystem,
-			}
-			return nil
-		})
-	}()
-
-	var wg sync.WaitGroup
-	wg.Add(numRunners)
-	for i := 0; i < numRunners; i++ {
-		go func() {
-			defer wg.Done()
-			for file := range fileStream {
-				log.Println(file.Path)
-				if thumb, _, err := thumb.ThumbFile(thumbCache, file.RealPath(), THUMB_WIDTH, THUMB_HEIGHT); err != nil {
-					log.Println(err)
-				} else if thumb != nil {
-					thumb.Close()
-				}
-			}
-		}()
-	}
-	wg.Wait()
-	log.Printf("Done generating thumbs")
-}
-
-func baseTeplateArgs() map[string]interface{} {
-	return map[string]interface{}{
-		"build":       build,
-		"version":     version,
-		"versionDate": versionDate,
-
-		"urlroot": urlRoot,
-		"assets":  staticAssets,
-		"time":    time.Now(),
-
-		"piwik":       piwikRoot != "" && piwikSiteID != 0,
-		"piwikRoot":   piwikRoot,
-		"piwikSiteID": piwikSiteID,
-	}
 }
 
 func genStaticAssets() map[string][]string {
@@ -263,232 +205,228 @@ type Web struct {
 	fs            *fs.Filesystem
 	authenticator Authenticator
 	thumbCache    cache.Cache
+
+	urlRoot     string
+	piwikRoot   string
+	piwikSiteID int
 }
 
 func (web *Web) view(w http.ResponseWriter, r *http.Request) {
-	var renderFile func(*fs.File)
-	renderFile = func(file *fs.File) {
-		auth, err := web.authenticator.Authenticate(file, w, r)
+	renderFile := func(path string) {
+		fileI, err := web.fs.View(path, web.authenticator.FSAuthenticator(r))
 		if err != nil {
-			panic(err)
-		}
-		if !auth {
-			if parent := file.Parent(); parent != nil {
-				renderFile(parent)
-			} else {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			}
+			log.Printf("Could not view %q: %v", path, err)
 			return
 		}
 
-		if !file.Info.IsDir() {
-			if ok, err := thumb.AcceptMimes(file.RealPath(), "image/jpeg", "image/png"); err != nil {
-				panic(err)
-			} else if ok {
-				// Scale down the image to reduce transfer time to the client.
-				const WIDTH, HEIGHT = 1366, 768
-				cachedImage, modTime, err := cache.CacheFile(web.thumbCache, file.RealPath(), "view", func(filename string, wr io.Writer) error {
-					fd, err := os.Open(filename)
-					if err != nil {
-						return err
-					}
-					defer fd.Close()
-					img, _, err := image.Decode(fd)
-					if err != nil {
-						return err
-					}
-					resized := resize.Thumbnail(WIDTH, HEIGHT, img, resize.NearestNeighbor)
-					return jpeg.Encode(wr, resized, nil)
-				})
-
-				if err != nil {
-					log.Println(err)
-					http.NotFound(w, r)
-					return
+		if files, ok := fileI.([]fs.File); ok {
+			tmplFiles := make([]map[string]interface{}, len(files))
+			for i, child := range files {
+				err := web.authenticator.FSAuthenticator(r).IsAuthenticated(child.Path)
+				if err != nil && err != fs.ErrNeedAuthentication {
+					log.Printf("Could not check whether %q is authenticated: %v", child.Name(), err)
 				}
-				if cachedImage == nil {
-					http.NotFound(w, r)
-					return
-				}
-				defer cachedImage.Close()
-				http.ServeContent(w, r, file.Info.Name(), modTime, cachedImage)
+				isUnlocked := err == nil
 
-			} else {
-				http.ServeFile(w, r, file.RealPath())
-			}
-			return
-		}
-
-		children, err := file.Children()
-		if err != nil {
-			panic(err)
-		}
-
-		files := make([]map[string]interface{}, len(children))[0:0]
-		for name, child := range children {
-			if fs.IsDotFile(child.Path) {
-				continue // Hide dotfiles
-			}
-			isUnlocked, err := web.authenticator.IsUnlocked(child, r)
-			if err != nil {
-				log.Println(err)
-				isUnlocked = false
-			}
-
-			files = append(files, map[string]interface{}{
-				"name": name,
-				"path": child.Path,
-				"type": func() string {
-					if child.Info.IsDir() {
-						return "directory"
-					} else {
-						mime, err := thumb.MimeType(child.RealPath())
+				tmplFiles[i] = map[string]interface{}{
+					"name": child.Name(),
+					"path": child.RelPath,
+					"type": func() string {
+						if child.Info.IsDir() {
+							return "directory"
+						}
+						mime, err := thumb.MimeType(child.Path)
 						if err != nil {
 							panic(err)
 						}
 						return mime
-					}
-				}(),
-				"hasThumb": func() bool {
-					if !isUnlocked {
-						ok, _ := directoryth.HasIconThumb(child.RealPath())
-						return ok
-					}
-					th, _ := thumb.FindThumber(child.RealPath())
-					return th != nil
-				}(),
-				"hasPassword": func() bool {
-					hasPassword, err := web.authenticator.HasPassword(child)
-					if err != nil {
-						log.Println(err)
-						return true
-					}
-					return hasPassword
-				}(),
-				"isUnlocked": isUnlocked,
-			})
+					}(),
+					"hasThumb": func() bool {
+						if !isUnlocked {
+							ok, _ := directoryth.HasIconThumb(child.Path)
+							return ok
+						}
+						th, _ := thumb.FindThumber(child.Path)
+						return th != nil
+					}(),
+					"hasPassword": func() bool {
+						hasPassword, err := web.authenticator.HasPassword(child.Path)
+						if err != nil {
+							log.Printf("Could not check whether %q is protected: %v", path, err)
+							return true
+						}
+						return hasPassword
+					}(),
+					"isUnlocked": isUnlocked,
+				}
+			}
+
+			args := web.baseTeplateArgs()
+			args["files"] = tmplFiles
+			args["fs"] = web.fs
+			args["path"] = path
+			args["title"] = filepath.Base(path)
+			if err := getPageTemplate("main.html").Execute(w, args); err != nil {
+				panic(err)
+			}
+			return
 		}
 
-		args := baseTeplateArgs()
-		args["files"] = files
-		args["fs"] = web.fs
-		args["path"] = file.Path
-		args["title"] = filepath.Base(file.Path)
-		if err := getPageTemplate("main.html").Execute(w, args); err != nil {
-			panic(err)
+		file := fileI.(fs.File)
+
+		// Scale down the image to reduce transfer time to the client.
+		if ok, err := thumb.AcceptMimes(file.Path, "image/jpeg", "image/png"); err != nil {
+			log.Println(err)
+			return
+		} else if ok {
+			const WIDTH, HEIGHT = 1366, 768
+			cachedImage, modTime, err := cache.CacheFile(web.thumbCache, file.Path, "view", func(filename string, wr io.Writer) error {
+				fd, err := os.Open(filename)
+				if err != nil {
+					return err
+				}
+				defer fd.Close()
+				img, _, err := image.Decode(fd)
+				if err != nil {
+					return err
+				}
+				resized := resize.Thumbnail(WIDTH, HEIGHT, img, resize.NearestNeighbor)
+				return jpeg.Encode(wr, resized, nil)
+			})
+
+			if err != nil {
+				log.Println(err)
+				http.NotFound(w, r)
+				return
+			}
+			if cachedImage == nil {
+				http.NotFound(w, r)
+				return
+			}
+			defer cachedImage.Close()
+			http.ServeContent(w, r, file.Info.Name(), modTime, cachedImage)
+			return
 		}
+
+		http.ServeFile(w, r, file.Path)
 	}
 
 	path := filepath.Clean("/" + chi.URLParam(r, "*"))
-	file, err := web.fs.Find(path)
-	if err != nil {
-		panic(err)
-	}
-	if file == nil || fs.IsDotFile(file.Path) {
-		http.NotFound(w, r)
+
+	if ok, err := web.authenticator.Authenticate(web.fs.RealPath(path), w, r); err != nil {
+		log.Println(err)
+		return
+	} else if !ok {
+		parent, err := web.fs.FirstAccessibleParent(path, web.authenticator.FSAuthenticator(r))
+		if err == fs.ErrNeedAuthentication {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		} else if err != nil {
+			log.Printf("Could not get first accessible parent of %q: %v", path, err)
+			return
+		}
+		renderFile(parent)
 		return
 	}
 
-	renderFile(file)
+	renderFile(path)
 }
 
 func (web *Web) thumb(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimSuffix(filepath.Clean("/"+chi.URLParam(r, "*")), ".jpg")
-	file, err := web.fs.Find(path)
-	if err != nil {
-		panic(err)
-	}
+	path := strings.TrimSuffix(chi.URLParam(r, "*"), ".jpg")
 
-	if file == nil || fs.IsDotFile(file.Path) {
+	img, mime, modTime, err := web.fs.Thumbnail(path, THUMB_WIDTH, THUMB_HEIGHT, web.authenticator.FSAuthenticator(r))
+	if err == fs.ErrFileDoesNotExist {
 		http.NotFound(w, r)
 		return
-	}
-
-	if auth, err := web.authenticator.IsUnlocked(file, r); err != nil {
-		panic(err)
-	} else if !auth {
-		if ok, err := directoryth.HasIconThumb(file.RealPath()); err != nil {
-			panic(err)
-		} else if !ok {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-	}
-
-	cachedThumb, modTime, err := thumb.ThumbFile(web.thumbCache, file.RealPath(), THUMB_WIDTH, THUMB_HEIGHT)
-	if err != nil {
-		log.Println(err)
+	} else if err == fs.ErrNeedAuthentication {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	} else if err == fs.ErrNoThumbnail {
 		http.NotFound(w, r)
 		return
-	}
-	if cachedThumb == nil {
-		http.NotFound(w, r)
+	} else if err != nil {
+		log.Printf("Could not get thumbnail for %q: %v", path, err)
 		return
 	}
-	defer cachedThumb.Close()
+	defer img.Close()
 
-	w.Header().Set("Content-Type", "image/jpeg")
-	http.ServeContent(w, r, file.Info.Name(), modTime, cachedThumb)
-}
-
-func (web *Web) get(w http.ResponseWriter, r *http.Request) {
-	path := filepath.Clean("/" + chi.URLParam(r, "*"))
-	file, err := web.fs.Find(path)
-	if err != nil {
-		panic(err)
-	}
-	if file == nil || fs.IsDotFile(file.Path) {
-		http.NotFound(w, r)
-		return
-	}
-
-	if auth, err := web.authenticator.Authenticate(file, w, r); err != nil {
-		panic(err)
-	} else if !auth {
-		w.Write([]byte("Unauthorized"))
-		return
-	}
-
-	http.ServeFile(w, r, file.RealPath())
+	w.Header().Set("Content-Type", mime)
+	http.ServeContent(w, r, filepath.Base(path)+".jpg", modTime, img)
 }
 
 func (web *Web) download(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimSuffix(filepath.Clean("/"+chi.URLParam(r, "*")), ".zip")
-	file, err := web.fs.Find(path)
-	if err != nil {
-		panic(err)
-	}
-
-	if file == nil || fs.IsDotFile(file.Path) {
+	path := chi.URLParam(r, "*")
+	filepath, err := web.fs.Filepath(path, web.authenticator.FSAuthenticator(r))
+	if err == fs.ErrFileDoesNotExist {
 		http.NotFound(w, r)
+		return
+	} else if err == fs.ErrNeedAuthentication {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	} else if err != nil {
+		log.Printf("Could not get file path for %q: %v", path, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/zip")
-	if file.Path == "/" {
-		w.Header().Set("Content-Disposition", "attachment; filename=\"webfs.zip\"")
-	}
+	http.ServeFile(w, r, filepath)
+}
 
-	filter := func(file *fs.File) (bool, error) {
-		if fs.IsDotFile(file.Path) {
-			return false, nil
-		}
-		return web.authenticator.IsUnlocked(file, r)
+func (web *Web) downloadZip(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimSuffix(chi.URLParam(r, "*"), ".zip")
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"webfs.zip\"")
+
+	err := web.fs.Zip(path, w, web.authenticator.FSAuthenticator(r))
+	if err == fs.ErrFileDoesNotExist {
+		http.NotFound(w, r)
+		return
+	} else if err == fs.ErrNeedAuthentication {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	} else if err != nil {
+		log.Printf("Could not zip %q: %v", path, err)
+		return
 	}
-	if err := fs.ZipTreeFilter(file, filter, w); err != nil {
-		panic(err)
+}
+
+func (web *Web) baseTeplateArgs() map[string]interface{} {
+	return map[string]interface{}{
+		"build":       build,
+		"version":     version,
+		"versionDate": versionDate,
+
+		"urlroot": web.urlRoot,
+		"assets":  staticAssets,
+		"time":    time.Now(),
+
+		"piwik":       web.piwikRoot != "" && web.piwikSiteID != 0,
+		"piwikRoot":   web.piwikRoot,
+		"piwikSiteID": web.piwikSiteID,
 	}
 }
 
 func getPageTemplate(name string) *template.Template {
 	if build == "debug" {
 		return template.Must(template.New(name).Parse(string(assets.MustAsset(name))))
-	} else {
-		if tmpl, ok := pageTemplates[name]; ok {
-			return tmpl
-		} else {
-			pageTemplates[name] = template.Must(template.New(name).Parse(string(assets.MustAsset(name))))
-			return pageTemplates[name]
-		}
 	}
+
+	if tmpl, ok := pageTemplates[name]; ok {
+		return tmpl
+	}
+	pageTemplates[name] = template.Must(template.New(name).
+		Parse(string(assets.MustAsset(name))))
+	return pageTemplates[name]
+}
+
+func resolveHome(p string) (string, error) {
+	if len(p) == 0 || p[0] != '~' {
+		return p, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p, err
+	}
+	return filepath.Join(home, p[1:]), nil
 }

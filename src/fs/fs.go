@@ -1,133 +1,280 @@
 package fs
 
 import (
+	"archive/zip"
+	"fmt"
+	"io"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
+	"time"
+
+	"webfs/src/cache"
+	"webfs/src/thumb"
+	"webfs/src/thumb/directory"
 )
 
+var (
+	ErrFileDoesNotExist   = fmt.Errorf("file does not exist")
+	ErrNeedAuthentication = fmt.Errorf("authentication is needed to access this file")
+	ErrNoThumbnail        = fmt.Errorf("file has no thumbnail")
+)
+
+type Authenticator interface {
+	IsAuthenticated(filename string) error
+}
+
+type AuthenticatorFunc func(filename string) error
+
+func (fn AuthenticatorFunc) IsAuthenticated(filename string) error {
+	return fn(filename)
+}
+
 type File struct {
-	Info os.FileInfo
-	Path string
-	Fs   *Filesystem
+	Info    os.FileInfo
+	Path    string
+	RelPath string
 }
 
-func (file File) RealPath() string {
-	return path.Join(file.Fs.RealPath, file.Path)
+func (f File) Name() string {
+	return filepath.Base(f.Path)
 }
 
-func (file File) Parent() *File {
-	parentPath := path.Dir(file.Path)
-	if parentPath == file.Path {
-		return nil
-	}
-	if parentPath == "" || parentPath == "." || parentPath == "/" {
-		return &file.Fs.Root
-	}
-
-	parent := &File{
-		Path: parentPath,
-		Fs:   file.Fs,
-	}
-	info, err := os.Stat(parent.RealPath())
-	if err != nil {
-		return nil
-	}
-	parent.Info = info
-	return parent
+type Filesystem struct {
+	mount      string
+	thumbCache cache.Cache
 }
 
-// Gets the directory contents of the file, or nil if the file is not a
-// directory.
-func (file File) Children() (map[string]*File, error) {
-	if !file.Info.IsDir() {
-		return nil, nil
+func NewFilesystem(mount string, thumbCache cache.Cache) (*Filesystem, error) {
+	if !filepath.IsAbs(mount) {
+		m, err := filepath.Abs(mount)
+		if err != nil {
+			return nil, err
+		}
+		mount = m
+	}
+	if stat, err := os.Stat(mount); err != nil {
+		return nil, err
+	} else if !stat.IsDir() {
+		return nil, fmt.Errorf("filesystem mount must be a directory")
+	}
+	return &Filesystem{mount: mount, thumbCache: thumbCache}, nil
+}
+
+// View returns:
+// * directory: []File
+// * file: File
+func (fs *Filesystem) View(path string, auth Authenticator) (interface{}, error) {
+	filename := fs.realPath(path)
+	if isDotFile(filename) {
+		return "", ErrFileDoesNotExist
+	}
+	if err := auth.IsAuthenticated(filename); err != nil {
+		return nil, err
 	}
 
-	fd, err := os.Open(file.RealPath())
-	if err != nil {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return nil, ErrFileDoesNotExist
+	} else if err != nil {
+		return nil, err
+	}
+
+	if !info.IsDir() {
+		return File{
+			Info:    info,
+			Path:    filename,
+			RelPath: path,
+		}, nil
+	}
+
+	fd, err := os.Open(filename)
+	if os.IsNotExist(err) {
+		return nil, ErrFileDoesNotExist
+	} else if err != nil {
 		return nil, err
 	}
 	defer fd.Close()
 
-	index := map[string]*File{}
-	children, err := fd.Readdir(-1)
-	if err != nil {
-		return index, nil
-	}
-
-	for _, child := range children {
-		index[child.Name()] = &File{
-			Info: child,
-			Path: path.Join(file.Path, child.Name()),
-			Fs:   file.Fs,
-		}
-	}
-	return index, nil
-}
-
-type Filesystem struct {
-	RealPath string
-	Root     File
-}
-
-func NewFilesystem(path string) (*Filesystem, error) {
-	fs := &Filesystem{
-		RealPath: ResolveHome(path),
-	}
-
-	stat, err := os.Stat(fs.RealPath)
+	osFiles, err := fd.Readdir(-1)
 	if err != nil {
 		return nil, err
 	}
-
-	fs.Root = File{
-		Info: stat,
-		Path: "/",
-		Fs:   fs,
+	files := make([]File, 0, len(osFiles))
+	for _, info := range osFiles {
+		if !isDotFile(info.Name()) {
+			files = append(files, File{
+				Info:    info,
+				Path:    filepath.Join(filename, info.Name()),
+				RelPath: filepath.Join(path, info.Name()),
+			})
+		}
 	}
-
-	return fs, nil
+	return files, nil
 }
 
-func (fs *Filesystem) Find(p string) (*File, error) {
-	if p == "" || p == "/" {
-		return &fs.Root, nil
+func (fs *Filesystem) FirstAccessibleParent(path string, auth Authenticator) (string, error) {
+	filename := fs.realPath(path)
+	if isDotFile(filename) {
+		return "", ErrFileDoesNotExist
+	}
+	for strings.HasPrefix(filename, fs.mount) {
+		if err := auth.IsAuthenticated(filename); err == nil {
+			return strings.TrimPrefix(filename, fs.mount), nil
+		} else if err != ErrNeedAuthentication {
+			return "", err
+		}
+		filename = filepath.Dir(filename)
+	}
+	return "", ErrNeedAuthentication
+}
+
+func (fs *Filesystem) FileInfo(path string, auth Authenticator) (os.FileInfo, error) {
+	filename := fs.realPath(path)
+	if isDotFile(filename) {
+		return nil, ErrFileDoesNotExist
+	}
+	if err := auth.IsAuthenticated(filename); err != nil {
+		return nil, err
+	}
+	return os.Stat(filename)
+}
+
+func (fs *Filesystem) Filepath(path string, auth Authenticator) (string, error) {
+	filename := fs.realPath(path)
+	if isDotFile(filename) {
+		return "", ErrFileDoesNotExist
+	}
+	if err := auth.IsAuthenticated(filename); err != nil {
+		return "", err
+	}
+	return filename, nil
+}
+
+func (fs *Filesystem) Thumbnail(path string, w, h int, auth Authenticator) (cache.ReadSeekCloser, string, time.Time, error) {
+	filename := fs.realPath(path)
+	if isDotFile(filename) {
+		return nil, "", time.Time{}, ErrFileDoesNotExist
+	}
+	if err := auth.IsAuthenticated(filename); err == ErrNeedAuthentication {
+		if ok, err := directory.HasIconThumb(filename); err != nil {
+			return nil, "", time.Time{}, err
+		} else if !ok {
+			return nil, "", time.Time{}, ErrNeedAuthentication
+		}
+	} else if err != nil {
+		return nil, "", time.Time{}, err
 	}
 
-	if s := p[:len(p)-1]; s == "/" {
-		p = s
+	cachedThumb, modTime, err := thumb.ThumbFile(fs.thumbCache, filename, w, h)
+	if err != nil {
+		return nil, "", time.Time{}, err
+	} else if cachedThumb == nil {
+		return nil, "", time.Time{}, ErrNoThumbnail
+	}
+	return cachedThumb, "image/jpeg", modTime, nil
+}
+
+func (fs *Filesystem) Zip(path string, wr io.Writer, auth Authenticator) error {
+	filename := fs.realPath(path)
+	if isDotFile(filename) {
+		return ErrFileDoesNotExist
+	}
+	if err := auth.IsAuthenticated(filename); err != nil {
+		return err
 	}
 
-	currentNode := &fs.Root
-	for _, f := range strings.Split(p, "/")[1:] {
-		children, err := currentNode.Children()
+	zipper := zip.NewWriter(wr)
+	defer zipper.Close()
+
+	return filepath.Walk(filename, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() || isDotFile(path) {
+			return nil
+		}
+
+		if err := auth.IsAuthenticated(path); err == ErrNeedAuthentication {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		header, err := zip.FileInfoHeader(info)
 		if err != nil {
-			return nil, err
+			return err
+		}
+		header.Name = strings.TrimPrefix(path, fs.mount)
+
+		entry, err := zipper.CreateHeader(header)
+		if err != nil {
+			return err
 		}
 
-		if newNode, ok := children[f]; ok {
-			currentNode = newNode
-		} else {
-			return nil, nil
+		fd, err := os.Open(path)
+		if err != nil {
+			return err
 		}
-	}
-
-	return currentNode, nil
+		defer fd.Close()
+		_, err = io.Copy(entry, fd)
+		return err
+	})
 }
 
-func IsDotFile(filename string) bool {
-	return path.Base(filename)[0] == '.'
+func (fs *Filesystem) Mount() string {
+	return fs.mount
 }
 
-func ResolveHome(p string) string {
-	if len(p) == 0 || p[0] != '~' {
-		return p
+func (fs *Filesystem) PregenerateThumbnails(w, h int) {
+	numRunners := runtime.NumCPU() / 2
+	if numRunners <= 0 {
+		numRunners = 1
 	}
-	home := os.Getenv("HOME")
-	if home == "" {
-		log.Fatal("~ found in path, but $HOME is not set")
+	log.Printf("Generating thumbnails using %v workers", numRunners)
+
+	fileStream := make(chan string)
+	go func() {
+		defer close(fileStream)
+		log.Printf("Generating thumbs")
+		filepath.Walk(fs.mount, func(path string, info os.FileInfo, err error) error {
+			if path == fs.mount || isDotFile(path) {
+				return nil
+			}
+			fileStream <- path
+			return nil
+		})
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(numRunners)
+	for i := 0; i < numRunners; i++ {
+		go func() {
+			defer wg.Done()
+			for filename := range fileStream {
+				log.Println(filename)
+				if thumb, _, err := thumb.ThumbFile(fs.thumbCache, filename, w, h); err != nil {
+					log.Println(err)
+				} else if thumb != nil {
+					thumb.Close()
+				}
+			}
+		}()
 	}
-	return path.Join(home, p[1:])
+	wg.Wait()
+	log.Printf("Done generating thumbs")
+}
+
+func (fs *Filesystem) RealPath(path string) string {
+	return fs.realPath(path)
+}
+
+func (fs *Filesystem) realPath(path string) string {
+	cleaned := filepath.Clean("/" + path)
+	return filepath.Join(fs.mount, cleaned)
+}
+
+func isDotFile(path string) bool {
+	b := filepath.Base(path)
+	return len(b) > 0 && b[0] == '.'
 }

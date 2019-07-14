@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -17,48 +17,47 @@ import (
 	"webfs/src/fs"
 )
 
-var passwdMatcher = regexp.MustCompile("(?m)^([^\\s]+)\\s([^\\s]+)$")
+var rePasswd = regexp.MustCompile("(?m)^([^\\s]+)\\s([^\\s]+)$")
 
 // Finds the password file by recursively looking in the parent directories of
 // the specified file until the root of the virtual filesystem is reached. If
 // no password file exists, nil is returned.
-func findAuthFile(file *fs.File) (*fs.File, error) {
-	children, err := file.Children()
-	if err != nil {
-		return nil, fmt.Errorf("Error finding password file: %v", err)
-	}
-	if children == nil {
-		children = map[string]*fs.File{}
+func findAuthFile(filesystem *fs.Filesystem, filename string) (string, error) {
+	dir := filename
+	if info, err := os.Stat(dir); err != nil {
+		return "", fmt.Errorf("could not find auth file: %v", err)
+	} else if !info.IsDir() {
+		dir = filepath.Dir(filename)
 	}
 
-	passwd, ok := children[".passwd.txt"]
-	if !ok {
-		parent := file.Parent()
-		if parent == nil {
-			return nil, nil
+	for strings.HasPrefix(dir, filesystem.Mount()) {
+		f := filepath.Join(dir, ".passwd.txt")
+		if _, err := os.Stat(f); err == nil {
+			return f, nil
+		} else if !os.IsNotExist(err) {
+			return "", fmt.Errorf("could not find auth file: %v", err)
 		}
-		return findAuthFile(parent)
+		dir = filepath.Dir(dir)
 	}
-	return passwd, nil
+	return "", nil
 }
 
-func authFileAuthenticate(authFile *fs.File, rUsername, rPassword string) (bool, error) {
-	buf, err := ioutil.ReadFile(authFile.RealPath())
+func authFileAuthenticate(authFile string, rUsername, rPassword string) (bool, error) {
+	buf, err := ioutil.ReadFile(authFile)
 	if err != nil {
 		// Deny access if the password file can not be read.
-		return false, fmt.Errorf("Error opening password file: %v", err)
+		return false, fmt.Errorf("error opening password file: %v", err)
 	}
 
-	matches := passwdMatcher.FindAllStringSubmatch(string(buf), -1)
+	matches := rePasswd.FindAllStringSubmatch(string(buf), -1)
 	if matches == nil {
-		return false, fmt.Errorf("Password file %q is not valid.", authFile.RealPath())
+		return false, fmt.Errorf("password file %q is not valid", authFile)
 	}
 	for _, match := range matches {
 		if match[1] == rUsername && match[2] == rPassword {
 			return true, nil
 		}
 	}
-
 	return false, nil
 }
 
@@ -70,35 +69,37 @@ type Authenticator interface {
 	// contains a list of possible username/password pairs separated by newlines.
 	// The username and password are separated by whitespace. Neither the username
 	// or password may therefore contain whitespace.
-	Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) (bool, error)
+	Authenticate(filename string, w http.ResponseWriter, r *http.Request) (bool, error)
 
-	HasPassword(file *fs.File) (bool, error)
+	HasPassword(filename string) (bool, error)
 
-	IsUnlocked(file *fs.File, req *http.Request) (bool, error)
+	FSAuthenticator(req *http.Request) fs.Authenticator
 }
 
 // An Authenticator that just allows everything. Useful for debuging purposes.
-type NilAuthenticator struct{}
+type NilAuthenticator struct {
+	Filesystem *fs.Filesystem
+}
 
-func (NilAuthenticator) Authenticate(*fs.File, http.ResponseWriter, *http.Request) (bool, error) {
+func (NilAuthenticator) Authenticate(string, http.ResponseWriter, *http.Request) (bool, error) {
 	return true, nil
 }
 
-func (NilAuthenticator) HasPassword(file *fs.File) (bool, error) {
-	authFile, err := findAuthFile(file)
-	return authFile != nil, err
+func (a NilAuthenticator) HasPassword(filename string) (bool, error) {
+	authFile, err := findAuthFile(a.Filesystem, filename)
+	return authFile != "", err
 }
 
-func (NilAuthenticator) IsUnlocked(file *fs.File, req *http.Request) (bool, error) {
-	return true, nil
+func (NilAuthenticator) FSAuthenticator(req *http.Request) fs.Authenticator {
+	return fs.AuthenticatorFunc(func(string) error { return nil })
 }
 
 type BasicAuthenticator struct {
-	store sessions.Store
+	filesystem *fs.Filesystem
+	store      sessions.Store
 }
 
-func NewBasicAuthenticator(storageDir string) (*BasicAuthenticator, error) {
-	storageDir = fs.ResolveHome(storageDir)
+func NewBasicAuthenticator(filesystem *fs.Filesystem, storageDir string) (*BasicAuthenticator, error) {
 	if err := os.MkdirAll(storageDir, 0700); err != nil {
 		return nil, err
 	}
@@ -120,47 +121,48 @@ func NewBasicAuthenticator(storageDir string) (*BasicAuthenticator, error) {
 	}
 
 	return &BasicAuthenticator{
-		store: sessions.NewFilesystemStore(storageDir, secret),
+		filesystem: filesystem,
+		store:      sessions.NewFilesystemStore(storageDir, secret),
 	}, nil
 }
 
-func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWriter, req *http.Request) (bool, error) {
+func (auth *BasicAuthenticator) Authenticate(filename string, w http.ResponseWriter, r *http.Request) (bool, error) {
 	// First, look for a .passwd.txt, the file is protected if it is found.
-	passwdFile, err := findAuthFile(file)
+	passwdFile, err := findAuthFile(auth.filesystem, filename)
 	if err != nil {
 		return false, err
 	}
-	if passwdFile == nil {
+	if passwdFile == "" {
 		return true, nil
 	}
 
 	// Load the session and check wether the passwd file has been previously unlocked.
-	sess, err := auth.store.Get(req, "auth")
+	sess, err := auth.store.Get(r, "auth")
 	if err != nil {
-		sess, err = auth.store.New(req, "auth")
+		sess, err = auth.store.New(r, "auth")
 	}
-	_, sessAuth := sess.Values[passwdFile.RealPath()]
+	_, sessAuth := sess.Values[passwdFile]
 
 	// Not authenticated? Check for username and password.
 	if !sessAuth {
 		time.Sleep(time.Millisecond * 200) // Mitigate brute force attack.
 
-		if rUsername, rPassword, ok := req.BasicAuth(); ok {
+		if rUsername, rPassword, ok := r.BasicAuth(); ok {
 			authenticated, err := authFileAuthenticate(passwdFile, rUsername, rPassword)
 			if err != nil {
 				return false, err
 			}
 
 			if authenticated {
-				sess.Values[passwdFile.RealPath()] = true
-				sess.Save(req, res)
+				sess.Values[passwdFile] = true
+				sess.Save(r, w)
 				return true, nil
 			}
 		}
 
 		// Prompt the user if none found.
-		res.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=\"Enter the credentials for %v\"", strings.Replace(file.Path, "\"", "\\\"", -1)))
-		res.WriteHeader(http.StatusUnauthorized)
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=\"Enter the credentials for %s\"", strings.Replace(filepath.Base(filename), "\"", "\\\"", -1)))
+		w.WriteHeader(http.StatusUnauthorized)
 		return false, nil
 	}
 
@@ -168,24 +170,30 @@ func (auth *BasicAuthenticator) Authenticate(file *fs.File, res http.ResponseWri
 	return true, nil
 }
 
-func (auth *BasicAuthenticator) HasPassword(file *fs.File) (bool, error) {
-	passwdFile, err := findAuthFile(file)
-	return passwdFile != nil, err
+func (auth *BasicAuthenticator) HasPassword(filename string) (bool, error) {
+	passwdFile, err := findAuthFile(auth.filesystem, filename)
+	return passwdFile != "", err
 }
 
-func (auth *BasicAuthenticator) IsUnlocked(file *fs.File, req *http.Request) (bool, error) {
-	passwdFile, err := findAuthFile(file)
-	if err != nil {
-		return false, err
-	}
-	if passwdFile == nil {
-		return true, nil
-	}
-	sess, err := auth.store.Get(req, "auth")
-	if err != nil {
-		log.Printf("Error getting session: %v", err)
-		return false, nil
-	}
-	_, sessAuth := sess.Values[passwdFile.RealPath()]
-	return sessAuth, nil
+func (auth *BasicAuthenticator) FSAuthenticator(r *http.Request) fs.Authenticator {
+	return fs.AuthenticatorFunc(func(filename string) error {
+		if filename == "/home/polyfloyd/Projects/webfs/testdata/home/polyfloyd/Projects/webfs/testdata" {
+			panic(filename)
+		}
+		passwdFile, err := findAuthFile(auth.filesystem, filename)
+		if err != nil {
+			return err
+		}
+		if passwdFile == "" {
+			return nil
+		}
+		sess, err := auth.store.Get(r, "auth")
+		if err != nil {
+			return fmt.Errorf("error getting session: %v", err)
+		}
+		if _, sessAuth := sess.Values[passwdFile]; !sessAuth {
+			return fs.ErrNeedAuthentication
+		}
+		return nil
+	})
 }
