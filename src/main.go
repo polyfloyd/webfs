@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"html/template"
@@ -13,6 +14,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -55,6 +57,12 @@ var (
 	startTime     = time.Now()
 	pageTemplates = map[string]*template.Template{}
 	staticAssets  = genStaticAssets()
+)
+
+type contextKey int
+
+const (
+	pathContextKey = iota + 1
 )
 
 type AssetServeHandler string
@@ -154,10 +162,13 @@ func main() {
 		piwikSiteID:   *piwikSiteID,
 	}
 
-	r.Get("/view/*", web.view)
-	r.Get("/thumb/*", web.thumb)
-	r.Get("/get/*", web.download)
-	r.Get("/download/*", web.downloadZip)
+	r.Group(func(r chi.Router) {
+		r.Use(fsPathCtx)
+		r.Get("/view/*", web.view)
+		r.Get("/thumb/*", web.thumb)
+		r.Get("/get/*", web.download)
+		r.Get("/download/*", web.downloadZip)
+	})
 
 	if *pregenThumbs {
 		go filesystem.PregenerateThumbnails(THUMB_WIDTH, THUMB_HEIGHT)
@@ -199,6 +210,19 @@ func genStaticAssets() map[string][]string {
 		sort.Strings(a)
 	}
 	return static
+}
+
+func fsPathCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rawPath := filepath.Clean("/" + chi.URLParam(r, "*"))
+		path, err := url.PathUnescape(rawPath)
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			return
+		}
+		ctx := context.WithValue(r.Context(), pathContextKey, path)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 type Web struct {
@@ -311,7 +335,7 @@ func (web *Web) view(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, file.Path)
 	}
 
-	path := filepath.Clean("/" + chi.URLParam(r, "*"))
+	path := r.Context().Value(pathContextKey).(string)
 
 	if ok, err := web.authenticator.Authenticate(web.fs.RealPath(path), w, r); err != nil {
 		log.Println(err)
@@ -333,7 +357,7 @@ func (web *Web) view(w http.ResponseWriter, r *http.Request) {
 }
 
 func (web *Web) thumb(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimSuffix(chi.URLParam(r, "*"), ".jpg")
+	path := strings.TrimSuffix(r.Context().Value(pathContextKey).(string), ".jpg")
 
 	img, mime, modTime, err := web.fs.Thumbnail(path, THUMB_WIDTH, THUMB_HEIGHT, web.authenticator.FSAuthenticator(r))
 	if err == fs.ErrFileDoesNotExist {
@@ -356,7 +380,7 @@ func (web *Web) thumb(w http.ResponseWriter, r *http.Request) {
 }
 
 func (web *Web) download(w http.ResponseWriter, r *http.Request) {
-	path := chi.URLParam(r, "*")
+	path := r.Context().Value(pathContextKey).(string)
 	filepath, err := web.fs.Filepath(path, web.authenticator.FSAuthenticator(r))
 	if err == fs.ErrFileDoesNotExist {
 		http.NotFound(w, r)
@@ -373,7 +397,7 @@ func (web *Web) download(w http.ResponseWriter, r *http.Request) {
 }
 
 func (web *Web) downloadZip(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimSuffix(chi.URLParam(r, "*"), ".zip")
+	path := strings.TrimSuffix(r.Context().Value(pathContextKey).(string), ".zip")
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", "attachment; filename=\"webfs.zip\"")
